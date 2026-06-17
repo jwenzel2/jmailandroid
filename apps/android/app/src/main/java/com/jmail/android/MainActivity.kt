@@ -80,6 +80,8 @@ import org.json.JSONObject
 import java.io.File
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -1143,16 +1145,28 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, close: () -> U
     val eventId = event?.optString("id").orEmpty().takeIf { it.isNotBlank() }
     val initialStartsAt = event?.cleanString("startsAt") ?: defaultStart.toString()
     val initialEndsAt = event?.cleanString("endsAt") ?: defaultStart.plus(1, ChronoUnit.HOURS).toString()
+    val initialStartLocal = remember(eventId) { eventLocalDateTime(initialStartsAt, defaultStart) }
+    val initialEndLocal = remember(eventId) { eventLocalDateTime(initialEndsAt, defaultStart.plus(1, ChronoUnit.HOURS)) }
     var title by remember(eventId) { mutableStateOf(event?.cleanString("title").orEmpty()) }
-    var startsAt by remember(eventId) { mutableStateOf(initialStartsAt) }
-    var endsAt by remember(eventId) { mutableStateOf(initialEndsAt) }
+    var startDate by remember(eventId) { mutableStateOf(initialStartLocal.toLocalDate().toString()) }
+    var startTime by remember(eventId) { mutableStateOf(initialStartLocal.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))) }
+    var endDate by remember(eventId) { mutableStateOf(initialEndLocal.toLocalDate().toString()) }
+    var endTime by remember(eventId) { mutableStateOf(initialEndLocal.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))) }
     var location by remember(eventId) { mutableStateOf(event?.cleanString("location").orEmpty()) }
     var status by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (eventId == null) "New event" else "Edit event", style = MaterialTheme.typography.headlineSmall)
         OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Title") })
-        OutlinedTextField(startsAt, { startsAt = it }, Modifier.fillMaxWidth(), label = { Text("Starts at ISO") })
-        OutlinedTextField(endsAt, { endsAt = it }, Modifier.fillMaxWidth(), label = { Text("Ends at ISO") })
+        Text("Start", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(startDate, { startDate = it }, Modifier.weight(1f), singleLine = true, label = { Text("Date") })
+            OutlinedTextField(startTime, { startTime = it }, Modifier.weight(1f), singleLine = true, label = { Text("Time") })
+        }
+        Text("End", style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(endDate, { endDate = it }, Modifier.weight(1f), singleLine = true, label = { Text("Date") })
+            OutlinedTextField(endTime, { endTime = it }, Modifier.weight(1f), singleLine = true, label = { Text("Time") })
+        }
         OutlinedTextField(location, { location = it }, Modifier.fillMaxWidth(), label = { Text("Location") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = close) { Text("Cancel") }
@@ -1160,6 +1174,8 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, close: () -> U
                 status = "Saving..."
                 Thread {
                     runCatching {
+                        val startsAt = eventIsoString(startDate, startTime)
+                        val endsAt = eventIsoString(endDate, endTime)
                         if (eventId == null) api.createEvent(title, startsAt, endsAt, location)
                         else api.updateEvent(eventId, title, startsAt, endsAt, location)
                     }
@@ -1168,6 +1184,7 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, close: () -> U
                 }.start()
             }) { Text("Save") }
         }
+        Text("Use date format YYYY-MM-DD and 24-hour time HH:mm.", style = MaterialTheme.typography.bodySmall)
         status?.let { Text(it, color = if (it == "Saving...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
     }
 }
@@ -1342,6 +1359,17 @@ private fun eventDate(event: JSONObject): LocalDate =
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
     }.getOrDefault(LocalDate.now())
+
+private fun eventLocalDateTime(value: String, fallback: Instant): LocalDateTime =
+    runCatching {
+        Instant.parse(value).atZone(ZoneId.systemDefault()).toLocalDateTime()
+    }.getOrDefault(fallback.atZone(ZoneId.systemDefault()).toLocalDateTime())
+
+private fun eventIsoString(date: String, time: String): String {
+    val localDate = LocalDate.parse(date.trim())
+    val localTime = LocalTime.parse(time.trim())
+    return LocalDateTime.of(localDate, localTime).atZone(ZoneId.systemDefault()).toInstant().toString()
+}
 
 private fun formatEventTime(event: JSONObject): String {
     val start = event.optString("startsAt")
