@@ -86,7 +86,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     private lateinit var session: SessionStore
@@ -118,6 +117,7 @@ class MainActivity : ComponentActivity() {
     }
 
     fun registerPush() {
+        if (!session.notificationsEnabled) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -131,13 +131,7 @@ class MainActivity : ComponentActivity() {
         runCatching {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                 Thread {
-                    val prefs = getSharedPreferences("jmail_session", MODE_PRIVATE)
-                    val id =
-                        prefs.getString("installation_id", null)
-                            ?: UUID.randomUUID().toString().also {
-                                prefs.edit().putString("installation_id", it).apply()
-                            }
-                    runCatching { api.registerDevice(id, token) }
+                    runCatching { api.registerDevice(session.installationId, token) }
                 }.start()
             }
         }
@@ -1216,6 +1210,7 @@ private fun JsonListScreen(api: JmailApi, emptyText: String, loader: () -> JSONA
 @Composable
 private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
     var darkTheme by remember { mutableStateOf(api.darkTheme) }
+    var notificationsEnabled by remember { mutableStateOf(api.notificationsEnabled) }
     var profile by remember { mutableStateOf<JSONObject?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
@@ -1248,8 +1243,31 @@ private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChang
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Push notifications", style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Receive new mail notifications")
+                    Switch(
+                        checked = notificationsEnabled,
+                        onCheckedChange = { enabled ->
+                            notificationsEnabled = enabled
+                            api.notificationsEnabled = enabled
+                            if (enabled) {
+                                registerPush()
+                                status = "Notification registration requested."
+                            } else {
+                                status = "Disabling notifications..."
+                                Thread {
+                                    runCatching { api.unregisterDevice() }
+                                        .onSuccess { runOnMain { status = "Notifications disabled for this device." } }
+                                        .onFailure { runOnMain { status = it.message } }
+                                }.start()
+                            }
+                        },
+                    )
+                }
                 Text("Re-register this device if notifications stop arriving or after server changes.")
                 Button(onClick = {
+                    api.notificationsEnabled = true
+                    notificationsEnabled = true
                     registerPush()
                     status = "Notification registration requested."
                 }) { Text("Re-register device") }

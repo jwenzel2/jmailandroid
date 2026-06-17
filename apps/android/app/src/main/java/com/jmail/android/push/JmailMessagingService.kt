@@ -15,13 +15,12 @@ import com.jmail.android.data.SessionStore
 class JmailMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         val session = SessionStore(this)
-        if (session.serverUrl == null || session.accessToken == null) return
-        val installationId = getSharedPreferences("jmail_session", MODE_PRIVATE)
-            .getString("installation_id", null) ?: return
-        Thread { runCatching { JmailApi(session).registerDevice(installationId, token) } }.start()
+        if (session.serverUrl == null || session.accessToken == null || !session.notificationsEnabled) return
+        Thread { runCatching { JmailApi(session).registerDevice(session.installationId, token) } }.start()
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        if (!SessionStore(this).notificationsEnabled) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {

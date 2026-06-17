@@ -5,6 +5,7 @@ import android.util.Base64
 import com.jmail.android.BuildConfig
 import java.net.URI
 import java.security.KeyStore
+import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -31,6 +32,17 @@ class SessionStore(context: Context) {
     var darkTheme: Boolean
         get() = prefs.getBoolean("dark_theme", false)
         set(value) = prefs.edit().putBoolean("dark_theme", value).apply()
+
+    var notificationsEnabled: Boolean
+        get() = prefs.getBoolean("notifications_enabled", true)
+        set(value) = prefs.edit().putBoolean("notifications_enabled", value).apply()
+
+    val installationId: String
+        get() =
+            prefs.getString("installation_id", null)
+                ?: UUID.randomUUID().toString().also {
+                    prefs.edit().putString("installation_id", it).apply()
+                }
 
     fun clear() {
         prefs.edit().clear().apply()

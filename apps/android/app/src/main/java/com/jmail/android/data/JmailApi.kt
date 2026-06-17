@@ -13,6 +13,12 @@ class JmailApi(private val session: SessionStore) {
             session.darkTheme = value
         }
 
+    var notificationsEnabled: Boolean
+        get() = session.notificationsEnabled
+        set(value) {
+            session.notificationsEnabled = value
+        }
+
     val configuredServerUrl: String?
         get() = session.serverUrl
 
@@ -149,8 +155,12 @@ class JmailApi(private val session: SessionStore) {
             "/api/v1/mobile/devices",
             "PUT",
             JSONObject().put("installationId", installationId).put("fcmToken", token)
-                .put("deviceName", android.os.Build.MODEL).put("notificationsEnabled", true),
+                .put("deviceName", android.os.Build.MODEL).put("notificationsEnabled", session.notificationsEnabled),
         )
+    }
+
+    fun unregisterDevice() {
+        request("/api/v1/mobile/devices/${encode(session.installationId)}", "DELETE")
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
