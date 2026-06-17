@@ -888,23 +888,27 @@ private fun ContactDetail(contact: JSONObject, back: () -> Unit, edit: () -> Uni
 
 @Composable
 private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () -> Unit, done: (JSONObject) -> Unit) {
-    var name by remember { mutableStateOf(contact?.optString("displayName").orEmpty()) }
-    var email by remember { mutableStateOf(contact?.optString("email").orEmpty()) }
-    var phone by remember { mutableStateOf(contact?.optString("phone").orEmpty()) }
+    var name by remember { mutableStateOf(contact?.cleanString("displayName").orEmpty()) }
+    var email by remember { mutableStateOf(contact?.cleanString("email").orEmpty()) }
+    var phone by remember { mutableStateOf(contact?.cleanString("phone").orEmpty()) }
+    var company by remember { mutableStateOf(contact?.cleanString("company").orEmpty()) }
+    var notes by remember { mutableStateOf(contact?.cleanString("notes").orEmpty()) }
     var status by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (contact == null) "New contact" else "Edit contact", style = MaterialTheme.typography.headlineSmall)
         OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") })
         OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email") })
         OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("Phone") })
+        OutlinedTextField(company, { company = it }, Modifier.fillMaxWidth(), label = { Text("Company") })
+        OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("Notes") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = close) { Text("Cancel") }
             Button(onClick = {
                 status = "Saving..."
                 Thread {
                     runCatching {
-                        if (contact == null) api.createContact(name, email, phone)
-                        else api.updateContact(contact.optString("id"), name, email, phone)
+                        if (contact == null) api.createContact(name, email, phone, company, notes)
+                        else api.updateContact(contact.optString("id"), name, email, phone, company, notes)
                     }
                         .onSuccess { runOnMain { done(it) } }
                         .onFailure { runOnMain { status = it.message } }

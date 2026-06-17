@@ -90,7 +90,7 @@ class JmailApi(private val session: SessionStore) {
 
     fun contacts(query: String = ""): JSONArray =
         request("/api/contacts?q=${encode(query)}").getJSONArray("contacts")
-    fun createContact(name: String, email: String, phone: String): JSONObject =
+    fun createContact(name: String, email: String, phone: String, company: String, notes: String): JSONObject =
         request(
             "/api/contacts",
             "POST",
@@ -98,18 +98,20 @@ class JmailApi(private val session: SessionStore) {
                 .put("displayName", name)
                 .put("email", email)
                 .put("phone", phone.ifBlank { JSONObject.NULL })
-                .put("company", JSONObject.NULL)
-                .put("notes", JSONObject.NULL)
+                .put("company", company.ifBlank { JSONObject.NULL })
+                .put("notes", notes.ifBlank { JSONObject.NULL })
                 .put("favorite", false),
         )
-    fun updateContact(id: String, name: String, email: String, phone: String): JSONObject =
+    fun updateContact(id: String, name: String, email: String, phone: String, company: String, notes: String): JSONObject =
         request(
             "/api/contacts/$id",
             "PATCH",
             JSONObject()
                 .put("displayName", name)
                 .put("email", email)
-                .put("phone", phone.ifBlank { JSONObject.NULL }),
+                .put("phone", phone.ifBlank { JSONObject.NULL })
+                .put("company", company.ifBlank { JSONObject.NULL })
+                .put("notes", notes.ifBlank { JSONObject.NULL }),
         )
     fun deleteContact(id: String): JSONObject = request("/api/contacts/$id", "DELETE")
 
