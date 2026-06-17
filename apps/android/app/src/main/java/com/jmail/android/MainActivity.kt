@@ -215,7 +215,7 @@ private fun JmailApp(
         Onboarding(session, api, error, login)
     } else {
         LaunchedEffect(Unit) { registerPush() }
-        MainShell(api, onThemeChanged) {
+        MainShell(api, registerPush, onThemeChanged) {
             session.clear()
             loggedIn = false
         }
@@ -254,7 +254,7 @@ private fun runOnMain(block: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainShell(api: JmailApi, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
+private fun MainShell(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
     var destination by remember { mutableStateOf(Destination.Mail) }
     Scaffold(
         topBar = {
@@ -275,7 +275,7 @@ private fun MainShell(api: JmailApi, onThemeChanged: (Boolean) -> Unit, logout: 
                 Destination.Mail -> AccountScreen(api)
                 Destination.Calendar -> CalendarScreen(api)
                 Destination.Contacts -> ContactsScreen(api)
-                Destination.Settings -> SettingsScreen(api, onThemeChanged, logout)
+                Destination.Settings -> SettingsScreen(api, registerPush, onThemeChanged, logout)
             }
         }
     }
@@ -1160,11 +1160,47 @@ private fun JsonListScreen(api: JmailApi, emptyText: String, loader: () -> JSONA
 }
 
 @Composable
-private fun SettingsScreen(api: JmailApi, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
+private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
     var darkTheme by remember { mutableStateOf(api.darkTheme) }
+    var profile by remember { mutableStateOf<JSONObject?>(null) }
+    var status by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { api.me().optJSONObject("user") } }
+            .onSuccess { profile = it }
+            .onFailure { status = it.message }
+    }
     Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Account and sync settings", style = MaterialTheme.typography.headlineSmall)
-        Text("Notification, signature, remote image, sync, folder, identity, rule, and vacation settings are capability-driven per account.")
+        Text("Server, identity, notification, theme, and session controls.")
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Server", style = MaterialTheme.typography.titleMedium)
+                Text(api.configuredServerUrl ?: "Not configured")
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Signed in as", style = MaterialTheme.typography.titleMedium)
+                val user = profile
+                if (user == null) {
+                    Text("Loading profile...")
+                } else {
+                    user.cleanString("name")?.let { Text(it) }
+                    user.cleanString("email")?.let { Text(it) }
+                    user.cleanString("id")?.let { Text("User ID: $it") }
+                }
+            }
+        }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Push notifications", style = MaterialTheme.typography.titleMedium)
+                Text("Re-register this device if notifications stop arriving or after server changes.")
+                Button(onClick = {
+                    registerPush()
+                    status = "Notification registration requested."
+                }) { Text("Re-register device") }
+            }
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text("Dark theme", style = MaterialTheme.typography.titleMedium)
@@ -1179,6 +1215,7 @@ private fun SettingsScreen(api: JmailApi, onThemeChanged: (Boolean) -> Unit, log
                 },
             )
         }
+        status?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         Button(logout, modifier = Modifier.padding(top = 24.dp)) { Text("Sign out") }
     }
 }

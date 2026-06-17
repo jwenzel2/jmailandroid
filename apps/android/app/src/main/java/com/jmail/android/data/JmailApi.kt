@@ -13,6 +13,9 @@ class JmailApi(private val session: SessionStore) {
             session.darkTheme = value
         }
 
+    val configuredServerUrl: String?
+        get() = session.serverUrl
+
     private val serverUrl: String
         get() = session.serverUrl ?: error("Server URL is not configured.")
 
@@ -34,6 +37,7 @@ class JmailApi(private val session: SessionStore) {
         authenticated = false,
     )
 
+    fun me(): JSONObject = request("/api/v1/me")
     fun accounts(): JSONArray = request("/api/v1/accounts").getJSONArray("accounts")
     fun folders(): JSONArray = requestArray("/api/mail/folders")
     fun inbox(): JSONArray =
