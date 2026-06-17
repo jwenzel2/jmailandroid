@@ -982,6 +982,7 @@ private fun CalendarScreen(api: JmailApi) {
                         anchor = anchor,
                         events = events,
                         selectDay = { anchor = it; mode = CalendarMode.Agenda },
+                        onEdit = { editing = it },
                     )
                 }
             }
@@ -1046,6 +1047,7 @@ private fun MonthCalendarGrid(
     anchor: LocalDate,
     events: List<JSONObject>,
     selectDay: (LocalDate) -> Unit,
+    onEdit: (JSONObject) -> Unit,
 ) {
     val month = YearMonth.from(anchor)
     val today = LocalDate.now()
@@ -1102,6 +1104,7 @@ private fun MonthCalendarGrid(
                                 event.optString("title").ifBlank { "Untitled" },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .clickable { onEdit(event) }
                                     .background(Color(0xFF8E1B2C))
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 color = Color(0xFFFFC2CD),
