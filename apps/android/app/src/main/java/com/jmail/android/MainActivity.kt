@@ -256,6 +256,11 @@ private fun runOnMain(block: () -> Unit) {
 @Composable
 private fun MainShell(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (Boolean) -> Unit, logout: () -> Unit) {
     var destination by remember { mutableStateOf(Destination.Mail) }
+    var composeDraft by remember { mutableStateOf<ComposeDraft?>(null) }
+    composeDraft?.let {
+        ComposeScreen(api, it) { composeDraft = null }
+        return
+    }
     Scaffold(
         topBar = {
             if (destination != Destination.Mail) {
@@ -272,9 +277,9 @@ private fun MainShell(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             when (destination) {
-                Destination.Mail -> AccountScreen(api)
+                Destination.Mail -> AccountScreen(api, compose = { composeDraft = it })
                 Destination.Calendar -> CalendarScreen(api)
-                Destination.Contacts -> ContactsScreen(api)
+                Destination.Contacts -> ContactsScreen(api, compose = { composeDraft = it })
                 Destination.Settings -> SettingsScreen(api, registerPush, onThemeChanged, logout)
             }
         }
@@ -282,11 +287,10 @@ private fun MainShell(api: JmailApi, registerPush: () -> Unit, onThemeChanged: (
 }
 
 @Composable
-private fun AccountScreen(api: JmailApi) {
+private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     val accounts = remember { mutableStateListOf<JSONObject>() }
     val folders = remember { mutableStateListOf<JSONObject>() }
     val messages = remember { mutableStateListOf<JSONObject>() }
-    var composing by remember { mutableStateOf<ComposeDraft?>(null) }
     var folder by remember { mutableStateOf("INBOX") }
     var drawerOpen by remember { mutableStateOf(false) }
     var refreshNonce by remember { mutableStateOf(0) }
@@ -358,17 +362,13 @@ private fun AccountScreen(api: JmailApi) {
             back = { selected = null },
             compose = { draft ->
                 selected = null
-                composing = draft
+                compose(draft)
             },
             afterAction = {
                 messages.remove(it)
                 selected = null
             },
         )
-        return
-    }
-    composing?.let {
-        ComposeScreen(api, it) { composing = null }
         return
     }
     Box(Modifier.fillMaxSize()) {
@@ -508,7 +508,7 @@ private fun AccountScreen(api: JmailApi) {
             )
         }
         FloatingActionButton(
-            onClick = { composing = ComposeDraft() },
+            onClick = { compose(ComposeDraft()) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
             Icon(Icons.Default.Send, "Compose")
@@ -743,7 +743,7 @@ private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit)
 }
 
 @Composable
-private fun ContactsScreen(api: JmailApi) {
+private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     val rows = remember { mutableStateListOf<JSONObject>() }
     var adding by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<JSONObject?>(null) }
@@ -777,7 +777,12 @@ private fun ContactsScreen(api: JmailApi) {
         return
     }
     selectedContact?.let { contact ->
-        ContactDetail(contact = contact, back = { selectedContact = null }, edit = { editing = contact })
+        ContactDetail(
+            contact = contact,
+            back = { selectedContact = null },
+            edit = { editing = contact },
+            email = { address -> compose(ComposeDraft(to = address)) },
+        )
         return
     }
     Box(Modifier.fillMaxSize()) {
@@ -856,14 +861,19 @@ private fun ContactsScreen(api: JmailApi) {
 }
 
 @Composable
-private fun ContactDetail(contact: JSONObject, back: () -> Unit, edit: () -> Unit) {
+private fun ContactDetail(contact: JSONObject, back: () -> Unit, edit: () -> Unit, email: (String) -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Button(onClick = back) { Text("Back") }
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(contact.optString("displayName"), style = MaterialTheme.typography.headlineSmall)
-                    Button(onClick = edit) { Text("Edit") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        contact.cleanString("email")?.let { address ->
+                            Button(onClick = { email(address) }) { Text("Email") }
+                        }
+                        Button(onClick = edit) { Text("Edit") }
+                    }
                 }
                 contact.cleanString("email")?.let { Text("Email: $it") }
                 contact.cleanString("phone")?.let { Text("Phone: $it") }
