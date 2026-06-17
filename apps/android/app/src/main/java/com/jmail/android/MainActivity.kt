@@ -750,9 +750,13 @@ private fun ContactsScreen(api: JmailApi) {
     var selectedContact by remember { mutableStateOf<JSONObject?>(null) }
     var selecting by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var query by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        runCatching { withContext(Dispatchers.IO) { api.contacts() } }
+    val activeQuery = query.trim()
+    LaunchedEffect(activeQuery) {
+        selectedIds = emptySet()
+        selecting = false
+        runCatching { withContext(Dispatchers.IO) { api.contacts(activeQuery) } }
             .onSuccess { rows.replace(it) }
             .onFailure { error = it.message }
     }
@@ -787,6 +791,20 @@ private fun ContactsScreen(api: JmailApi) {
                     }) { Text(if (selecting) "Cancel" else "Select") }
                 }
             }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        query,
+                        { query = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Search contacts") },
+                    )
+                    if (query.isNotBlank()) {
+                        Button(onClick = { query = "" }) { Text("Clear") }
+                    }
+                }
+            }
             if (selecting && selectedIds.isNotEmpty()) {
                 item {
                     Button(onClick = {
@@ -803,7 +821,9 @@ private fun ContactsScreen(api: JmailApi) {
                 }
             }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            if (rows.isEmpty()) item { Text("No contacts") }
+            if (rows.isEmpty()) {
+                item { Text(if (activeQuery.isBlank()) "No contacts" else "No contacts match \"$activeQuery\"") }
+            }
             items(rows) { contact ->
                 val id = contact.optString("id")
                 Card(
@@ -819,8 +839,8 @@ private fun ContactsScreen(api: JmailApi) {
                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (selecting) Text(if (selectedIds.contains(id)) "✓" else "○")
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(contact.optString("displayName"), style = MaterialTheme.typography.titleMedium)
-                        Text(contact.optString("email"))
+                            Text(contact.optString("displayName"), style = MaterialTheme.typography.titleMedium)
+                            Text(contact.optString("email"))
                         }
                     }
                 }

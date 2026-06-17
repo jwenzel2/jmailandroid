@@ -88,7 +88,8 @@ class JmailApi(private val session: SessionStore) {
                 .put("inReplyToFolder", inReplyToFolder ?: JSONObject.NULL),
         )
 
-    fun contacts(): JSONArray = request("/api/contacts?q=").getJSONArray("contacts")
+    fun contacts(query: String = ""): JSONArray =
+        request("/api/contacts?q=${encode(query)}").getJSONArray("contacts")
     fun createContact(name: String, email: String, phone: String): JSONObject =
         request(
             "/api/contacts",
