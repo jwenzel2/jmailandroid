@@ -293,6 +293,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectingMessages by remember { mutableStateOf(false) }
+    var movingSelected by remember { mutableStateOf(false) }
     var selectedMessageUids by remember { mutableStateOf(setOf<Int>()) }
     var selectedAccount by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
@@ -330,11 +331,11 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 .onFailure { runOnMain { error = it.message } }
         }.start()
     }
-    fun runBulkMessageAction(action: String, removeFromList: Boolean = false, patch: (JSONObject.() -> Unit)? = null) {
+    fun runBulkMessageAction(action: String, removeFromList: Boolean = false, targetFolder: String? = null, patch: (JSONObject.() -> Unit)? = null) {
         val uids = selectedMessageUids.toList()
         if (uids.isEmpty()) return
         Thread {
-            runCatching { api.action(folder, uids, action) }
+            runCatching { api.action(folder, uids, action, targetFolder) }
                 .onSuccess {
                     runOnMain {
                         if (removeFromList) messages.removeAll { selectedMessageUids.contains(it.optInt("uid")) }
@@ -343,6 +344,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         }
                         selectedMessageUids = emptySet()
                         selectingMessages = false
+                        movingSelected = false
                         refreshNonce++
                     }
                 }
@@ -389,6 +391,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     Button(onClick = {
                         selectingMessages = !selectingMessages
                         selectedMessageUids = emptySet()
+                        movingSelected = false
                     }) { Text(if (selectingMessages) "Cancel" else "Select") }
                     Button(onClick = { refreshNonce++ }) { Text("Refresh") }
                 }
@@ -427,8 +430,23 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         Button(onClick = { runBulkMessageAction("unflag", patch = { put("flagged", false) }) }) {
                             Text("Unstar")
                         }
+                        Button(onClick = { movingSelected = !movingSelected }) {
+                            Text(if (movingSelected) "Cancel move" else "Move")
+                        }
                         Button(onClick = { runBulkMessageAction("delete", removeFromList = true) }) {
                             Text("Delete (${selectedMessageUids.size})")
+                        }
+                    }
+                }
+                if (movingSelected) {
+                    item { Text("Move selected to", style = MaterialTheme.typography.titleMedium) }
+                    items(folders.filter { it.optBoolean("selectable", true) && it.optString("path") != folder }) { target ->
+                        val targetPath = target.optString("path")
+                        Button(
+                            onClick = { runBulkMessageAction("move", removeFromList = true, targetFolder = targetPath) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(target.optString("name").ifBlank { targetPath })
                         }
                     }
                 }
