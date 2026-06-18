@@ -25,7 +25,12 @@ class SessionStore(context: Context) {
             }.apply()
 
     var accessToken: String?
-        get() = prefs.getString("access_token", null)?.let(::decrypt)
+        get() = prefs.getString("access_token", null)?.let { encrypted ->
+            runCatching { decrypt(encrypted) }.getOrElse {
+                clearAccessToken()
+                null
+            }
+        }
         set(value) = prefs.edit().apply {
             if (value == null) remove("access_token") else putString("access_token", encrypt(value))
         }.apply()
