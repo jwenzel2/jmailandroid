@@ -1397,18 +1397,18 @@ private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit)
                             }
                     }.start()
                 }
-            ) { Text("Send") }
+            ) { Text(if (sending) "Sending..." else "Send") }
         }
-        OutlinedTextField(to, { to = it }, Modifier.fillMaxWidth(), label = { Text("To") })
+        OutlinedTextField(to, { to = it }, Modifier.fillMaxWidth(), enabled = !sending, label = { Text("To") })
         Text(
             "Separate multiple recipients with commas or semicolons.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedTextField(cc, { cc = it }, Modifier.fillMaxWidth(), label = { Text("Cc") })
-        OutlinedTextField(bcc, { bcc = it }, Modifier.fillMaxWidth(), label = { Text("Bcc") })
-        OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text("Subject") })
-        OutlinedTextField(body, { body = it }, Modifier.fillMaxWidth(), minLines = 10, label = { Text("Message") })
+        OutlinedTextField(cc, { cc = it }, Modifier.fillMaxWidth(), enabled = !sending, label = { Text("Cc") })
+        OutlinedTextField(bcc, { bcc = it }, Modifier.fillMaxWidth(), enabled = !sending, label = { Text("Bcc") })
+        OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), enabled = !sending, label = { Text("Subject") })
+        OutlinedTextField(body, { body = it }, Modifier.fillMaxWidth(), minLines = 10, enabled = !sending, label = { Text("Message") })
         status?.let { Text(it, color = if (it == "Sending...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
     }
 }
@@ -1610,11 +1610,11 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
     var saving by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (contact == null) "New contact" else "Edit contact", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") })
-        OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("Email") })
-        OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("Phone") })
-        OutlinedTextField(company, { company = it }, Modifier.fillMaxWidth(), label = { Text("Company") })
-        OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("Notes") })
+        OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Name") })
+        OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Email") })
+        OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Phone") })
+        OutlinedTextField(company, { company = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Company") })
+        OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), minLines = 3, enabled = !saving, label = { Text("Notes") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = close, enabled = !saving) { Text("Cancel") }
             Button(enabled = !saving, onClick = {
@@ -1646,7 +1646,7 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
                             }
                         }
                 }.start()
-            }) { Text("Save") }
+            }) { Text(if (saving) "Saving..." else "Save") }
         }
         status?.let { Text(it, color = if (it == "Saving...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
     }
