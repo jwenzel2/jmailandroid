@@ -326,6 +326,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var mailFilter by remember { mutableStateOf(MailFilter.All) }
     var selectingMessages by remember { mutableStateOf(false) }
     var movingSelected by remember { mutableStateOf(false) }
+    var confirmingBulkDelete by remember { mutableStateOf(false) }
     var selectedMessageUids by remember { mutableStateOf(setOf<Int>()) }
     var selectedAccount by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
@@ -417,6 +418,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selectedMessageUids = emptySet()
                         selectingMessages = false
                         movingSelected = false
+                        confirmingBulkDelete = false
                         refreshNonce++
                     }
                 }
@@ -508,6 +510,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selectingMessages = !selectingMessages
                         selectedMessageUids = emptySet()
                         movingSelected = false
+                        confirmingBulkDelete = false
                     }) { Text(if (selectingMessages) "Cancel" else "Select") }
                     Button(onClick = { refreshNonce++ }) { Text("Refresh") }
                 }
@@ -534,6 +537,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 mailFilter = filter
                                 selectedMessageUids = emptySet()
                                 movingSelected = false
+                                confirmingBulkDelete = false
                             },
                             enabled = mailFilter != filter,
                         ) {
@@ -573,8 +577,24 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         Button(onClick = { movingSelected = !movingSelected }) {
                             Text(if (movingSelected) "Cancel move" else "Move")
                         }
-                        Button(onClick = { runBulkMessageAction("delete", removeFromList = true) }) {
+                        Button(onClick = { confirmingBulkDelete = true }) {
                             Text("Delete (${selectedMessageUids.size})")
+                        }
+                    }
+                }
+                if (confirmingBulkDelete) {
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Delete selected messages?", style = MaterialTheme.typography.titleMedium)
+                                Text("This moves ${selectedMessageUids.size} selected message(s) out of the current folder.")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { confirmingBulkDelete = false }) { Text("Cancel") }
+                                    Button(onClick = { runBulkMessageAction("delete", removeFromList = true) }) {
+                                        Text("Delete selected")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -602,6 +622,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         if (selectingMessages) {
                             selectedMessageUids =
                                 if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
+                            confirmingBulkDelete = false
                         } else {
                             selected = message
                         }
@@ -684,6 +705,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     searchQuery = ""
                     selectedMessageUids = emptySet()
                     selectingMessages = false
+                    confirmingBulkDelete = false
                     messages.clear()
                     drawerOpen = false
                 },
