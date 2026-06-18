@@ -4,7 +4,33 @@ This repository includes the Android client plus a copied mobile API snapshot fo
 server. The API files under `apps/api/src` are handoff source, not a standalone buildable server
 inside this Android repository.
 
+As of June 18, 2026, `/home/jeremiah/Projects/jmail` contains the mobile API work on `main` at:
+
+```text
+854a9a5 Add mobile token renewal support
+```
+
+The jmail workspace was verified with:
+
+```bash
+pnpm typecheck
+NODE_ENV=test DATABASE_URL=postgres://jmail:jmail@127.0.0.1:5432/jmail \
+  SESSION_SECRET=0123456789abcdef \
+  TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  pnpm test
+NODE_ENV=test DATABASE_URL=postgres://jmail:jmail@127.0.0.1:5432/jmail \
+  SESSION_SECRET=0123456789abcdef \
+  TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  pnpm build
+```
+
+The shell used for verification had Node 18.19.1, so pnpm printed an engine warning because jmail
+declares Node >= 22. Typecheck, tests, and build still passed.
+
 ## Files To Merge Into The jmail Server
+
+These files are already present in `/home/jeremiah/Projects/jmail`; keep this list as the deployment
+audit checklist for any other environment or branch:
 
 - `apps/api/src/routes/mobile.ts`
 - `apps/api/src/repositories/mobileAuth.ts`

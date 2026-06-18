@@ -113,7 +113,8 @@ The Google Services Gradle plugin is configured and applies automatically when
 
 ## Release Work Remaining
 
-- Deploy the mobile token renewal API and verify long-lived login against production.
-- Verify server-side account provisioning against the production mobile API.
+- Deploy the verified jmail mobile API changes to production and run the smoke tests in
+  [`docs/MOBILE_API_DEPLOYMENT.md`](docs/MOBILE_API_DEPLOYMENT.md).
+- Verify long-lived login and server-side account provisioning against the production mobile API.
 - Finalize store privacy disclosures for the actual deployment.
 - Complete and record a full real-device QA pass against `mail.jwenzel.net`.
