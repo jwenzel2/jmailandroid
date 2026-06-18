@@ -247,25 +247,50 @@ private fun JmailApp(
 private fun Onboarding(session: SessionStore, api: JmailApi, error: String?, login: () -> Unit) {
     var server by remember { mutableStateOf(session.serverUrl ?: "") }
     var status by remember { mutableStateOf(error) }
+    var connecting by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center) {
         Text("Connect to jmail", style = MaterialTheme.typography.headlineMedium)
         Text("Your organization server provides identity, mail accounts, calendar, contacts, and push.")
-        OutlinedTextField(server, { server = it }, Modifier.fillMaxWidth().padding(top = 24.dp), label = { Text("Server URL") })
+        OutlinedTextField(
+            server,
+            { server = it },
+            Modifier.fillMaxWidth().padding(top = 24.dp),
+            enabled = !connecting,
+            label = { Text("Server URL") },
+        )
         Button(onClick = {
+            val normalized = normalizeServerUrl(server)
+            if (normalized == null) {
+                status = "Enter a valid server URL."
+                return@Button
+            }
+            connecting = true
             status = null
             Thread {
                 runCatching {
-                    val normalized = normalizeServerUrl(server) ?: error("Enter a valid server URL.")
                     api.compatibility(normalized)
                     normalized
                 }
                     .onSuccess {
                         session.serverUrl = it
                         runOnMain(login)
-                    }.onFailure { runOnMain { status = it.message } }
+                    }.onFailure {
+                        runOnMain {
+                            connecting = false
+                            status = it.message
+                        }
+                    }
             }.start()
-        }, modifier = Modifier.padding(top = 16.dp)) { Text("Continue with Keycloak") }
-        status?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp)) }
+        }, enabled = !connecting, modifier = Modifier.padding(top = 16.dp)) {
+            Text(if (connecting) "Checking server..." else "Continue with Keycloak")
+        }
+        status?.let {
+            Text(
+                it,
+                color = if (connecting) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
     }
 }
 
