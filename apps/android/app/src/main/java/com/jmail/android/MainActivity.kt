@@ -1335,12 +1335,15 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var selectedContact by remember { mutableStateOf<JSONObject?>(null) }
     var selecting by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var confirmingDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val activeQuery = query.trim()
     LaunchedEffect(activeQuery) {
         selectedIds = emptySet()
         selecting = false
+        confirmingDelete = false
         runCatching { withContext(Dispatchers.IO) { api.contacts(activeQuery) } }
             .onSuccess { rows.replace(it) }
             .onFailure { error = it.message }
@@ -1378,6 +1381,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     Button(onClick = {
                         selecting = !selecting
                         selectedIds = emptySet()
+                        confirmingDelete = false
                     }) { Text(if (selecting) "Cancel" else "Select") }
                 }
             }
@@ -1397,17 +1401,44 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             }
             if (selecting && selectedIds.isNotEmpty()) {
                 item {
-                    Button(onClick = {
-                        val ids = selectedIds
-                        Thread {
-                            ids.forEach { id -> runCatching { api.deleteContact(id) } }
-                            runOnMain {
-                                rows.removeAll { ids.contains(it.optString("id")) }
-                                selectedIds = emptySet()
-                                selecting = false
+                    Button(onClick = { confirmingDelete = true }, enabled = !deleting) {
+                        Text("Delete selected (${selectedIds.size})")
+                    }
+                }
+                if (confirmingDelete) {
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Delete selected contacts?", style = MaterialTheme.typography.titleMedium)
+                                Text("This deletes ${selectedIds.size} selected contact(s) from the server.")
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { confirmingDelete = false }, enabled = !deleting) { Text("Cancel") }
+                                    Button(
+                                        enabled = !deleting,
+                                        onClick = {
+                                            val ids = selectedIds
+                                            deleting = true
+                                            error = null
+                                            Thread {
+                                                val failures = ids.count { id -> runCatching { api.deleteContact(id) }.isFailure }
+                                                runOnMain {
+                                                    deleting = false
+                                                    if (failures == 0) {
+                                                        rows.removeAll { ids.contains(it.optString("id")) }
+                                                        selectedIds = emptySet()
+                                                        selecting = false
+                                                        confirmingDelete = false
+                                                    } else {
+                                                        error = "Failed to delete $failures contact(s)."
+                                                    }
+                                                }
+                                            }.start()
+                                        },
+                                    ) { Text(if (deleting) "Deleting..." else "Delete selected") }
+                                }
                             }
-                        }.start()
-                    }) { Text("Delete selected (${selectedIds.size})") }
+                        }
+                    }
                 }
             }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
@@ -1420,6 +1451,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     onClick = {
                         if (selecting) {
                             selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
+                            confirmingDelete = false
                         } else {
                             selectedContact = contact
                         }
