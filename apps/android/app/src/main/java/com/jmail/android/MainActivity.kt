@@ -200,6 +200,7 @@ private fun JmailApp(
 ) {
     var loggedIn by remember { mutableStateOf(session.isSignedIn) }
     var error by remember { mutableStateOf<String?>(null) }
+    var exchangingAuthCode by remember { mutableStateOf(false) }
     DisposableEffect(api) {
         api.onSessionExpired = { message ->
             runOnMain {
@@ -217,7 +218,9 @@ private fun JmailApp(
         }
     }
     LaunchedEffect(authCode) {
-        if (authCode != null && session.serverUrl != null) {
+        if (authCode != null && session.serverUrl != null && !exchangingAuthCode) {
+            exchangingAuthCode = true
+            error = null
             runCatching { withContext(Dispatchers.IO) { api.exchange(authCode) } }
                 .onSuccess {
                     val token = it.optString("accessToken")
@@ -226,10 +229,15 @@ private fun JmailApp(
                         error = "Login completed, but the server did not return a mobile token."
                     } else {
                         session.saveAccessToken(token, expiresAt)
+                        error = null
                         loggedIn = true
                         registerPush()
                     }
-                }.onFailure { error = it.message }
+                    exchangingAuthCode = false
+                }.onFailure {
+                    exchangingAuthCode = false
+                    error = it.message
+                }
         }
     }
     if (!loggedIn) {
