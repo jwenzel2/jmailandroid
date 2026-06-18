@@ -414,8 +414,14 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         Button(onClick = { runBulkMessageAction("markSeen", patch = { put("seen", true) }) }) {
                             Text("Read")
                         }
+                        Button(onClick = { runBulkMessageAction("markUnseen", patch = { put("seen", false) }) }) {
+                            Text("Unread")
+                        }
                         Button(onClick = { runBulkMessageAction("flag", patch = { put("flagged", true) }) }) {
                             Text("Star")
+                        }
+                        Button(onClick = { runBulkMessageAction("unflag", patch = { put("flagged", false) }) }) {
+                            Text("Unstar")
                         }
                         Button(onClick = { runBulkMessageAction("delete", removeFromList = true) }) {
                             Text("Delete (${selectedMessageUids.size})")
