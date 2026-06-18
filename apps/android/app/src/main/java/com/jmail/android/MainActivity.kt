@@ -1091,6 +1091,7 @@ private fun MessageDetailScreen(
     var confirmingAction by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attachmentStatus by remember { mutableStateOf<String?>(null) }
+    var downloadingPartId by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val uid = summary.optInt("uid")
 
@@ -1215,11 +1216,13 @@ private fun MessageDetailScreen(
                         val partId = attachment.optString("partId")
                         val filename = attachment.optString("filename").ifBlank { "Attachment $partId" }
                         val contentType = attachment.optString("contentType").ifBlank { "application/octet-stream" }
+                        val downloading = downloadingPartId == partId
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(filename, style = MaterialTheme.typography.titleSmall)
                                 Text("$contentType · ${formatBytes(attachment.optLong("size"))}")
-                                Button(onClick = {
+                                Button(enabled = !downloading, onClick = {
+                                    downloadingPartId = partId
                                     attachmentStatus = "Downloading $filename..."
                                     Thread {
                                         runCatching { api.downloadAttachment(folder, uid, partId) }
@@ -1228,15 +1231,22 @@ private fun MessageDetailScreen(
                                                     runCatching {
                                                         shareAttachment(context, filename, contentType, bytes)
                                                     }.onSuccess {
+                                                        downloadingPartId = null
                                                         attachmentStatus = "Downloaded $filename (${formatBytes(bytes.size.toLong())})"
                                                     }.onFailure {
+                                                        downloadingPartId = null
                                                         error = it.message
                                                     }
                                                 }
                                             }
-                                            .onFailure { runOnMain { error = it.message } }
+                                            .onFailure {
+                                                runOnMain {
+                                                    downloadingPartId = null
+                                                    error = it.message
+                                                }
+                                            }
                                     }.start()
-                                }) { Text("Download") }
+                                }) { Text(if (downloading) "Downloading..." else "Download") }
                             }
                         }
                     }
