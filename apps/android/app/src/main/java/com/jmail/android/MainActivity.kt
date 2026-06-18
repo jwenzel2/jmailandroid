@@ -294,6 +294,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     val folders = remember { mutableStateListOf<JSONObject>() }
     val messages = remember { mutableStateListOf<JSONObject>() }
     var addingAccount by remember { mutableStateOf(false) }
+    var viewingAccount by remember { mutableStateOf<JSONObject?>(null) }
     var folder by remember { mutableStateOf("INBOX") }
     var drawerOpen by remember { mutableStateOf(false) }
     var refreshNonce by remember { mutableStateOf(0) }
@@ -410,6 +411,19 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 accounts.add(account)
                 selectedAccount = account.optString("displayName").ifBlank { account.optString("email") }
                 addingAccount = false
+            },
+        )
+        return
+    }
+    viewingAccount?.let { account ->
+        AccountDetailScreen(
+            api = api,
+            account = account,
+            back = { viewingAccount = null },
+            deleted = {
+                accounts.removeAll { it.optString("id") == account.optString("id") }
+                if (selectedAccount == account.accountLabel()) selectedAccount = null
+                viewingAccount = null
             },
         )
         return
@@ -617,7 +631,8 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 selectedFolder = folder,
                 onClose = { drawerOpen = false },
                 onAccountSelected = {
-                    selectedAccount = it
+                    selectedAccount = it.accountLabel()
+                    viewingAccount = it
                     drawerOpen = false
                 },
                 onAddAccount = {
@@ -651,7 +666,7 @@ private fun MailDrawer(
     folders: List<JSONObject>,
     selectedFolder: String,
     onClose: () -> Unit,
-    onAccountSelected: (String) -> Unit,
+    onAccountSelected: (JSONObject) -> Unit,
     onAddAccount: () -> Unit,
     onFolderSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -675,12 +690,7 @@ private fun MailDrawer(
                 } else {
                     items(accounts) { account ->
                         Button(
-                            onClick = {
-                                onAccountSelected(
-                                    account.optString("displayName")
-                                        .ifBlank { account.optString("email") },
-                                )
-                            },
+                            onClick = { onAccountSelected(account) },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column {
@@ -711,6 +721,104 @@ private fun MailDrawer(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AccountDetailScreen(api: JmailApi, account: JSONObject, back: () -> Unit, deleted: () -> Unit) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    val settings = account.optJSONObject("settings")
+    val capabilities = account.optJSONObject("capabilities")
+
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Button(back, enabled = !deleting) { Text("Back") }
+                if (!confirmingDelete) {
+                    Button(onClick = { confirmingDelete = true }, enabled = !deleting) { Text("Remove") }
+                }
+            }
+        }
+        item { Text(account.accountLabel(), style = MaterialTheme.typography.headlineSmall) }
+        account.cleanString("email")?.let { item { AccountInfoRow("Email", it) } }
+        account.cleanString("displayName")?.let { item { AccountInfoRow("Display name", it) } }
+        item { AccountInfoRow("Status", account.optString("status").ifBlank { "unknown" }) }
+        account.cleanString("lastError")?.let { item { AccountInfoRow("Last error", it) } }
+        item { AccountInfoRow("Protocol", account.optString("protocol").uppercase()) }
+        item { AccountInfoRow("Auth", account.optString("authType").ifBlank { "unknown" }) }
+        account.cleanString("username")?.let { item { AccountInfoRow("Username", it) } }
+        account.cleanString("imapHost")?.let { host ->
+            item { AccountInfoRow("Incoming host", hostWithPort(host, account.optInt("imapPort"))) }
+        }
+        account.cleanString("smtpHost")?.let { host ->
+            item { AccountInfoRow("SMTP host", hostWithPort(host, account.optInt("smtpPort"))) }
+        }
+        if (settings != null) {
+            item { Text("Settings", style = MaterialTheme.typography.titleMedium) }
+            item { AccountInfoRow("Notifications", if (settings.optBoolean("notifications", true)) "On" else "Off") }
+            item { AccountInfoRow("Sync interval", "${settings.optInt("syncIntervalMinutes", 15)} minutes") }
+            item { AccountInfoRow("Remote images", if (settings.optBoolean("showRemoteImages")) "Shown" else "Blocked") }
+            item { AccountInfoRow("Leave on server", if (settings.optBoolean("leaveOnServer", true)) "Yes" else "No") }
+        }
+        if (capabilities != null) {
+            item { Text("Capabilities", style = MaterialTheme.typography.titleMedium) }
+            item {
+                Text(
+                    listOf("folders", "push", "rules", "vacation")
+                        .filter { capabilities.optBoolean(it) }
+                        .joinToString(", ")
+                        .ifBlank { "None advertised" },
+                )
+            }
+        }
+        if (confirmingDelete) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Remove this mail account?", style = MaterialTheme.typography.titleMedium)
+                        Text("This removes the account configuration from jmail. It does not delete messages from the mail server.")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { confirmingDelete = false }, enabled = !deleting) { Text("Cancel") }
+                            Button(
+                                enabled = !deleting,
+                                onClick = {
+                                    deleting = true
+                                    status = "Removing account..."
+                                    Thread {
+                                        runCatching { api.deleteAccount(account.optString("id")) }
+                                            .onSuccess { runOnMain { deleted() } }
+                                            .onFailure {
+                                                runOnMain {
+                                                    deleting = false
+                                                    status = it.message
+                                                }
+                                            }
+                                    }.start()
+                                },
+                            ) { Text("Remove account") }
+                        }
+                    }
+                }
+            }
+        }
+        status?.let {
+            item {
+                Text(
+                    it,
+                    color = if (it == "Removing account...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountInfoRow(label: String, value: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value)
     }
 }
 
@@ -1666,6 +1774,10 @@ private fun JSONObject.cleanString(key: String): String? {
     if (isNull(key)) return null
     return optString(key).takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
 }
+
+private fun JSONObject.accountLabel(): String = cleanString("displayName") ?: cleanString("email") ?: "Mail account"
+
+private fun hostWithPort(host: String, port: Int): String = if (port > 0) "$host:$port" else host
 
 private fun addressLine(label: String, addresses: JSONArray?): String {
     if (addresses == null || addresses.length() == 0) return "$label: "
