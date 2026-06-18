@@ -364,6 +364,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 messages.remove(it)
                 selected = null
             },
+            afterPatch = { patch ->
+                replaceMessage(it.optInt("uid"), patch)
+                selected = JSONObject(it.toString()).apply(patch)
+            },
         )
         return
     }
@@ -589,6 +593,7 @@ private fun MessageDetailScreen(
     back: () -> Unit,
     compose: (ComposeDraft) -> Unit,
     afterAction: () -> Unit,
+    afterPatch: (JSONObject.() -> Unit) -> Unit,
 ) {
     var detail by remember { mutableStateOf<JSONObject?>(null) }
     var moving by remember { mutableStateOf(false) }
@@ -625,8 +630,36 @@ private fun MessageDetailScreen(
                 attachmentStatus?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val seen = message.optBoolean("seen")
+                        val flagged = message.optBoolean("flagged")
                         Button(onClick = { compose(replyDraft(message, folder, uid)) }) { Text("Reply") }
                         Button(onClick = { compose(forwardDraft(message)) }) { Text("Forward") }
+                        Button(onClick = {
+                            Thread {
+                                runCatching { api.action(folder, uid, if (seen) "markUnseen" else "markSeen") }
+                                    .onSuccess {
+                                        runOnMain {
+                                            val patch: JSONObject.() -> Unit = { put("seen", !seen) }
+                                            detail = JSONObject(message.toString()).apply(patch)
+                                            afterPatch(patch)
+                                        }
+                                    }
+                                    .onFailure { runOnMain { error = it.message } }
+                            }.start()
+                        }) { Text(if (seen) "Unread" else "Read") }
+                        Button(onClick = {
+                            Thread {
+                                runCatching { api.action(folder, uid, if (flagged) "unflag" else "flag") }
+                                    .onSuccess {
+                                        runOnMain {
+                                            val patch: JSONObject.() -> Unit = { put("flagged", !flagged) }
+                                            detail = JSONObject(message.toString()).apply(patch)
+                                            afterPatch(patch)
+                                        }
+                                    }
+                                    .onFailure { runOnMain { error = it.message } }
+                            }.start()
+                        }) { Text(if (flagged) "Unstar" else "Star") }
                         Button(onClick = { moving = !moving }) { Text(if (moving) "Cancel move" else "Move") }
                         Button(onClick = {
                             Thread {
