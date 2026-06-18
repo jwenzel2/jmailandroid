@@ -9,8 +9,8 @@ login, mail, contacts, calendar, and push device registration.
 
 - Keycloak/OIDC login through the jmail mobile callback flow.
 - Persistent signed-in session backed by local Android preferences.
-- Mail folders, account/folder drawer, message list, message detail, search, pagination, quick
-  filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
+- Mail account add flow, folders, account/folder drawer, message list, message detail, search,
+  pagination, quick filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
 - Compose, reply, and forward flows with basic client-side validation.
 - Attachment download/share through Android `FileProvider`.
 - Contacts list, search, detail view, create/edit, and multi-select delete.
@@ -79,8 +79,7 @@ Firebase configuration:
 
 ## Release Work Remaining
 
-- Verify token refresh and long-lived login against the production mobile API.
-- Complete the mobile add-account flow if multiple server-side mail accounts should be added from
-  Android.
+- Verify token refresh, long-lived login, and server-side account provisioning against the
+  production mobile API.
 - Add release signing, versioning, app icon, and privacy/release notes.
 - Perform a full real-device QA pass against `mail.jwenzel.net`.

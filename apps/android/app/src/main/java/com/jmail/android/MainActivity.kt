@@ -293,6 +293,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     val accounts = remember { mutableStateListOf<JSONObject>() }
     val folders = remember { mutableStateListOf<JSONObject>() }
     val messages = remember { mutableStateListOf<JSONObject>() }
+    var addingAccount by remember { mutableStateOf(false) }
     var folder by remember { mutableStateOf("INBOX") }
     var drawerOpen by remember { mutableStateOf(false) }
     var refreshNonce by remember { mutableStateOf(0) }
@@ -400,6 +401,18 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 }
                 .onFailure { runOnMain { error = it.message } }
         }.start()
+    }
+    if (addingAccount) {
+        AccountEditorScreen(
+            api = api,
+            close = { addingAccount = false },
+            done = { account ->
+                accounts.add(account)
+                selectedAccount = account.optString("displayName").ifBlank { account.optString("email") }
+                addingAccount = false
+            },
+        )
+        return
     }
     selected?.let {
         MessageDetailScreen(
@@ -607,6 +620,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     selectedAccount = it
                     drawerOpen = false
                 },
+                onAddAccount = {
+                    drawerOpen = false
+                    addingAccount = true
+                },
                 onFolderSelected = {
                     folder = it
                     selected = null
@@ -635,6 +652,7 @@ private fun MailDrawer(
     selectedFolder: String,
     onClose: () -> Unit,
     onAccountSelected: (String) -> Unit,
+    onAddAccount: () -> Unit,
     onFolderSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -647,6 +665,11 @@ private fun MailDrawer(
                     }
                 }
                 item { Text("Accounts", style = MaterialTheme.typography.titleLarge) }
+                item {
+                    Button(onClick = onAddAccount, modifier = Modifier.fillMaxWidth()) {
+                        Text("Add mail account")
+                    }
+                }
                 if (accounts.isEmpty()) {
                     item { Text("Current jmail account") }
                 } else {
@@ -660,7 +683,13 @@ private fun MailDrawer(
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {
-                            Text(account.optString("displayName").ifBlank { account.optString("email") })
+                            Column {
+                                Text(account.optString("displayName").ifBlank { account.optString("email") })
+                                Text(
+                                    "${account.optString("protocol").uppercase()} · ${account.optString("status")}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                     }
                 }
@@ -680,6 +709,165 @@ private fun MailDrawer(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObject) -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var protocol by remember { mutableStateOf("imap") }
+    var authType by remember { mutableStateOf("keycloak") }
+    var incomingHost by remember { mutableStateOf("mail.jwenzel.net") }
+    var incomingPort by remember { mutableStateOf("993") }
+    var smtpHost by remember { mutableStateOf("mail.jwenzel.net") }
+    var smtpPort by remember { mutableStateOf("587") }
+    var username by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var notifications by remember { mutableStateOf(true) }
+    var leaveOnServer by remember { mutableStateOf(true) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+
+    fun selectProtocol(next: String) {
+        protocol = next
+        incomingPort = if (next == "imap") "993" else "995"
+    }
+
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Button(close, enabled = !saving) { Text("Cancel") }
+                Button(
+                    enabled = !saving,
+                    onClick = {
+                        val emailText = email.trim()
+                        val incomingPortNumber = incomingPort.toIntOrNull()
+                        val smtpPortNumber = smtpPort.toIntOrNull()
+                        val usernameText = username.trim().ifBlank { emailText }
+                        when {
+                            emailText.isBlank() || !emailText.contains("@") -> {
+                                status = "Enter a valid email address."
+                                return@Button
+                            }
+                            incomingHost.isBlank() -> {
+                                status = "Enter an incoming mail host."
+                                return@Button
+                            }
+                            incomingPortNumber == null || incomingPortNumber <= 0 -> {
+                                status = "Enter a valid incoming port."
+                                return@Button
+                            }
+                            smtpHost.isBlank() -> {
+                                status = "Enter an SMTP host."
+                                return@Button
+                            }
+                            smtpPortNumber == null || smtpPortNumber <= 0 -> {
+                                status = "Enter a valid SMTP port."
+                                return@Button
+                            }
+                            usernameText.isBlank() -> {
+                                status = "Enter a username."
+                                return@Button
+                            }
+                            authType == "password" && secret.isBlank() -> {
+                                status = "Enter the account password or app password."
+                                return@Button
+                            }
+                        }
+                        val body = JSONObject()
+                            .put("email", emailText)
+                            .put("displayName", displayName.trim().ifBlank { JSONObject.NULL })
+                            .put("protocol", protocol)
+                            .put("authType", authType)
+                            .put("imapHost", incomingHost.trim())
+                            .put("imapPort", incomingPortNumber)
+                            .put("smtpHost", smtpHost.trim())
+                            .put("smtpPort", smtpPortNumber)
+                            .put("username", usernameText)
+                            .put(
+                                "settings",
+                                JSONObject()
+                                    .put("notifications", notifications)
+                                    .put("syncIntervalMinutes", 15)
+                                    .put("signature", "")
+                                    .put("showRemoteImages", false)
+                                    .put("leaveOnServer", leaveOnServer)
+                                    .put("archiveFolder", JSONObject.NULL)
+                                    .put("sentFolder", JSONObject.NULL)
+                                    .put("trashFolder", JSONObject.NULL)
+                                    .put("junkFolder", JSONObject.NULL),
+                            )
+                        if (authType == "password") body.put("secret", secret)
+                        saving = true
+                        status = "Adding account..."
+                        Thread {
+                            runCatching { api.addAccount(body) }
+                                .onSuccess { runOnMain { done(it) } }
+                                .onFailure {
+                                    runOnMain {
+                                        saving = false
+                                        status = it.message
+                                    }
+                                }
+                        }.start()
+                    },
+                ) { Text("Save") }
+            }
+        }
+        item { Text("Add mail account", style = MaterialTheme.typography.headlineSmall) }
+        item { OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Email address") }) }
+        item { OutlinedTextField(displayName, { displayName = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Display name") }) }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { selectProtocol("imap") }, enabled = protocol != "imap", modifier = Modifier.weight(1f)) {
+                    Text("IMAP")
+                }
+                Button(onClick = { selectProtocol("pop3") }, enabled = protocol != "pop3", modifier = Modifier.weight(1f)) {
+                    Text("POP3")
+                }
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { authType = "keycloak" }, enabled = authType != "keycloak", modifier = Modifier.weight(1f)) {
+                    Text("Keycloak")
+                }
+                Button(onClick = { authType = "password" }, enabled = authType != "password", modifier = Modifier.weight(1f)) {
+                    Text("Password")
+                }
+            }
+        }
+        item { OutlinedTextField(incomingHost, { incomingHost = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (protocol == "imap") "IMAP host" else "POP3 host") }) }
+        item { OutlinedTextField(incomingPort, { incomingPort = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (protocol == "imap") "IMAP port" else "POP3 port") }) }
+        item { OutlinedTextField(smtpHost, { smtpHost = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("SMTP host") }) }
+        item { OutlinedTextField(smtpPort, { smtpPort = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("SMTP port") }) }
+        item { OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") }, placeholder = { Text("Defaults to email address") }) }
+        if (authType == "password") {
+            item { OutlinedTextField(secret, { secret = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Password or app password") }) }
+        } else {
+            item { Text("Keycloak auth uses your signed-in jmail identity. No account password is stored on this device.") }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Enable notifications")
+                Switch(checked = notifications, onCheckedChange = { notifications = it })
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Leave mail on server")
+                Switch(checked = leaveOnServer, onCheckedChange = { leaveOnServer = it })
+            }
+        }
+        status?.let {
+            item {
+                Text(
+                    it,
+                    color = if (it == "Adding account...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
