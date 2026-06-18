@@ -426,6 +426,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             items(messages) { message ->
                 val seen = message.optBoolean("seen")
                 val flagged = message.optBoolean("flagged")
+                val hasAttachments = message.optBoolean("hasAttachments")
                 val uid = message.optInt("uid")
                 val selectedForBulk = selectedMessageUids.contains(uid)
                 Card(
@@ -450,7 +451,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = if (seen) FontWeight.Normal else FontWeight.Bold,
                             )
-                            if (flagged) Text("★", color = MaterialTheme.colorScheme.primary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (hasAttachments) Text("ATT", color = MaterialTheme.colorScheme.primary)
+                                if (flagged) Text("★", color = MaterialTheme.colorScheme.primary)
+                            }
                         }
                         Text(message.optJSONArray("from")?.optJSONObject(0)?.optString("address") ?: "")
                         Text(message.optString("preview"))
