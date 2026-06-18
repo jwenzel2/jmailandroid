@@ -1762,20 +1762,49 @@ private fun CalendarEventCard(
     onEdit: (JSONObject) -> Unit,
     onError: (String?) -> Unit,
 ) {
+    var confirmingDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(event.optString("title"), style = MaterialTheme.typography.titleMedium)
             Text(formatEventTime(event))
             event.optString("location").takeIf { it.isNotBlank() }?.let { Text(it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onEdit(event) }) { Text("Edit") }
-                Button(onClick = {
-                    Thread {
-                        runCatching { api.deleteEvent(event.optString("id")) }
-                            .onSuccess { runOnMain { rows.remove(event) } }
-                            .onFailure { runOnMain { onError(it.message) } }
-                    }.start()
-                }) { Text("Delete") }
+                Button(onClick = { onEdit(event) }, enabled = !deleting) { Text("Edit") }
+                Button(onClick = { confirmingDelete = true }, enabled = !deleting) { Text("Delete") }
+            }
+            if (confirmingDelete) {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Delete this event?", style = MaterialTheme.typography.titleMedium)
+                        Text("This removes the event from the server calendar.")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { confirmingDelete = false }, enabled = !deleting) { Text("Cancel") }
+                            Button(
+                                enabled = !deleting,
+                                onClick = {
+                                    deleting = true
+                                    onError(null)
+                                    Thread {
+                                        runCatching { api.deleteEvent(event.optString("id")) }
+                                            .onSuccess {
+                                                runOnMain {
+                                                    deleting = false
+                                                    rows.remove(event)
+                                                }
+                                            }
+                                            .onFailure {
+                                                runOnMain {
+                                                    deleting = false
+                                                    onError(it.message)
+                                                }
+                                            }
+                                    }.start()
+                                },
+                            ) { Text(if (deleting) "Deleting..." else "Delete event") }
+                        }
+                    }
+                }
             }
         }
     }
