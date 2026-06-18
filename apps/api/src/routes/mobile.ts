@@ -58,8 +58,8 @@ export async function mobileRoutes(app: FastifyInstance): Promise<void> {
     features: ['mail-accounts', 'mail', 'calendar', 'contacts', 'fcm-devices', 'mobile-token-renewal'],
   }));
 
-  app.post('/api/v1/mobile/token', { preHandler: requireAuth }, async (req) => {
-    if (!req.sessionId) throw new Error('missing_session');
+  app.post('/api/v1/mobile/token', { preHandler: requireAuth }, async (req, reply) => {
+    if (!req.sessionId) return reply.code(401).send({ error: 'missing_session' });
     const token = await createMobileToken(req.currentUser!.id, req.sessionId);
     const oldToken = bearer(req);
     if (oldToken) await revokeMobileToken(oldToken);
