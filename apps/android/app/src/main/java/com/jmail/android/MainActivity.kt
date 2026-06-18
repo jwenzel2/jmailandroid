@@ -1338,15 +1338,19 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var confirmingDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val activeQuery = query.trim()
     LaunchedEffect(activeQuery) {
         selectedIds = emptySet()
         selecting = false
         confirmingDelete = false
+        loading = true
+        error = null
         runCatching { withContext(Dispatchers.IO) { api.contacts(activeQuery) } }
             .onSuccess { rows.replace(it) }
             .onFailure { error = it.message }
+        loading = false
     }
     if (adding) {
         ContactEditor(api, close = { adding = false }) {
@@ -1442,7 +1446,9 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 }
             }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            if (rows.isEmpty()) {
+            if (loading) {
+                item { Text("Loading contacts...") }
+            } else if (rows.isEmpty()) {
                 item { Text(if (activeQuery.isBlank()) "No contacts" else "No contacts match \"$activeQuery\"") }
             }
             items(rows) { contact ->
@@ -1561,8 +1567,11 @@ private fun CalendarScreen(api: JmailApi) {
     var editing by remember { mutableStateOf<JSONObject?>(null) }
     var mode by remember { mutableStateOf(CalendarMode.Month) }
     var anchor by remember { mutableStateOf(LocalDate.now()) }
+    var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
+        loading = true
+        error = null
         runCatching {
             withContext(Dispatchers.IO) {
                 api.events(
@@ -1571,6 +1580,7 @@ private fun CalendarScreen(api: JmailApi) {
                 )
             }
         }.onSuccess { rows.replace(it) }.onFailure { error = it.message }
+        loading = false
     }
     if (adding) {
         EventEditor(api, initialDay = anchor, close = { adding = false }) {
@@ -1588,6 +1598,7 @@ private fun CalendarScreen(api: JmailApi) {
         return
     }
     val events = rows.sortedBy { it.optString("startsAt") }
+    val agendaEvents = eventsForDay(events, LocalDate.now())
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -1604,9 +1615,13 @@ private fun CalendarScreen(api: JmailApi) {
                 )
             }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            if (events.isEmpty()) item { Text("No events") }
+            if (loading) {
+                item { Text("Loading calendar...") }
+            }
             when (mode) {
-                CalendarMode.Agenda -> eventsForDay(events, LocalDate.now()).forEach { event ->
+                CalendarMode.Agenda -> if (!loading && agendaEvents.isEmpty()) {
+                    item { Text("No events today") }
+                } else agendaEvents.forEach { event ->
                     item { CalendarEventCard(event, api, rows, onEdit = { editing = it }) { error = it } }
                 }
                 CalendarMode.Week -> weekDays(anchor).forEach { day ->
