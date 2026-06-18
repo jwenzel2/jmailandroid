@@ -196,17 +196,25 @@ private fun JmailApp(
     onThemeChanged: (Boolean) -> Unit,
     login: () -> Unit,
 ) {
-    var loggedIn by remember { mutableStateOf(session.accessToken != null) }
+    var loggedIn by remember { mutableStateOf(session.isSignedIn) }
     var error by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        if (session.accessToken != null && !session.isSignedIn) {
+            session.clearAccessToken()
+            error = "Your mobile session expired. Sign in again."
+            loggedIn = false
+        }
+    }
     LaunchedEffect(authCode) {
         if (authCode != null && session.serverUrl != null) {
             runCatching { withContext(Dispatchers.IO) { api.exchange(authCode) } }
                 .onSuccess {
                     val token = it.optString("accessToken")
+                    val expiresAt = it.optString("expiresAt").takeIf { value -> value.isNotBlank() }
                     if (token.isBlank()) {
                         error = "Login completed, but the server did not return a mobile token."
                     } else {
-                        session.accessToken = token
+                        session.saveAccessToken(token, expiresAt)
                         loggedIn = true
                         registerPush()
                     }

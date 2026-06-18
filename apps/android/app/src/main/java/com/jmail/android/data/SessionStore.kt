@@ -5,6 +5,7 @@ import android.util.Base64
 import com.jmail.android.BuildConfig
 import java.net.URI
 import java.security.KeyStore
+import java.time.Instant
 import java.util.UUID
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -28,6 +29,31 @@ class SessionStore(context: Context) {
         set(value) = prefs.edit().apply {
             if (value == null) remove("access_token") else putString("access_token", encrypt(value))
         }.apply()
+
+    var accessTokenExpiresAt: String?
+        get() = prefs.getString("access_token_expires_at", null)
+        set(value) = prefs.edit().apply {
+            if (value == null) remove("access_token_expires_at") else putString("access_token_expires_at", value)
+        }.apply()
+
+    val isSignedIn: Boolean
+        get() = accessToken != null && !isAccessTokenExpired
+
+    val isAccessTokenExpired: Boolean
+        get() {
+            val expiresAt = accessTokenExpiresAt ?: return false
+            return runCatching { Instant.parse(expiresAt).isBefore(Instant.now()) }.getOrDefault(true)
+        }
+
+    fun saveAccessToken(token: String, expiresAt: String?) {
+        accessToken = token
+        accessTokenExpiresAt = expiresAt
+    }
+
+    fun clearAccessToken() {
+        accessToken = null
+        accessTokenExpiresAt = null
+    }
 
     var darkTheme: Boolean
         get() = prefs.getBoolean("dark_theme", false)

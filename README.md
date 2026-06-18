@@ -8,7 +8,7 @@ login, mail, contacts, calendar, and push device registration.
 ## Current Features
 
 - Keycloak/OIDC login through the jmail mobile callback flow.
-- Persistent signed-in session backed by local Android preferences.
+- Persistent signed-in session backed by local Android preferences with mobile token expiry tracking.
 - Mail account add/edit/remove flow, folders, account/folder drawer, message list, message detail,
   search, pagination, quick filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
 - Compose, reply, and forward flows with basic client-side validation.
@@ -79,7 +79,8 @@ Firebase configuration:
 
 ## Release Work Remaining
 
-- Verify token refresh, long-lived login, and server-side account provisioning against the
-  production mobile API.
+- Add a server-side mobile token refresh/renewal endpoint if sessions should extend without
+  re-login after the current mobile token expires.
+- Verify server-side account provisioning against the production mobile API.
 - Add release signing, versioning, app icon, and privacy/release notes.
 - Perform a full real-device QA pass against `mail.jwenzel.net`.

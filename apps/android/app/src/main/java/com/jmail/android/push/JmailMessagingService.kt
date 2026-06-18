@@ -15,7 +15,7 @@ import com.jmail.android.data.SessionStore
 class JmailMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         val session = SessionStore(this)
-        if (session.serverUrl == null || session.accessToken == null || !session.notificationsEnabled) return
+        if (session.serverUrl == null || !session.isSignedIn || !session.notificationsEnabled) return
         Thread { runCatching { JmailApi(session).registerDevice(session.installationId, token) } }.start()
     }
 

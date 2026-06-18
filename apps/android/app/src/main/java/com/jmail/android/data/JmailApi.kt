@@ -26,7 +26,13 @@ class JmailApi(private val session: SessionStore) {
         get() = session.serverUrl ?: error("Server URL is not configured.")
 
     private val accessToken: String
-        get() = session.accessToken ?: error("You are not signed in.")
+        get() {
+            if (session.isAccessTokenExpired) {
+                session.clearAccessToken()
+                error("Your mobile session expired. Sign in again.")
+            }
+            return session.accessToken ?: error("You are not signed in.")
+        }
 
     fun loginUrl(): URI = URI.create(
         "$serverUrl/api/v1/mobile/login?redirect_uri=" +
