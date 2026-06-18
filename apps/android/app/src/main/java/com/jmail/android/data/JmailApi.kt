@@ -49,7 +49,9 @@ class JmailApi(private val session: SessionStore) {
     fun inbox(): JSONArray =
         messages("INBOX")
     fun messages(folder: String): JSONArray =
-        request("/api/mail/messages?folder=${encode(folder)}&page=1&pageSize=50").getJSONArray("messages")
+        messagePage(folder, 1, 50).getJSONArray("messages")
+    fun messagePage(folder: String, page: Int, pageSize: Int = 50): JSONObject =
+        request("/api/mail/messages?folder=${encode(folder)}&page=$page&pageSize=$pageSize")
     fun searchMessages(folder: String, query: String): JSONArray =
         request("/api/mail/search?folder=${encode(folder)}&q=${encode(query)}").getJSONArray("messages")
     fun message(folder: String, uid: Int): JSONObject =

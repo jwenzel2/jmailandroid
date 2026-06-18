@@ -291,6 +291,9 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var drawerOpen by remember { mutableStateOf(false) }
     var refreshNonce by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var currentPage by remember { mutableStateOf(1) }
+    var hasMoreMessages by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var selectingMessages by remember { mutableStateOf(false) }
     var movingSelected by remember { mutableStateOf(false) }
@@ -304,12 +307,45 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
         error = null
         runCatching { withContext(Dispatchers.IO) { api.accounts() } }.onSuccess { accounts.replace(it) }.onFailure { error = it.message }
         runCatching { withContext(Dispatchers.IO) { api.folders() } }.onSuccess { folders.replace(it) }
-        runCatching {
-            withContext(Dispatchers.IO) {
-                if (activeSearch.isBlank()) api.messages(folder) else api.searchMessages(folder, activeSearch)
-            }
-        }.onSuccess { messages.replace(it) }.onFailure { error = it.message }
+        if (activeSearch.isBlank()) {
+            runCatching {
+                withContext(Dispatchers.IO) { api.messagePage(folder, 1) }
+            }.onSuccess { page ->
+                val pageMessages = page.getJSONArray("messages")
+                messages.replace(pageMessages)
+                currentPage = page.optInt("page", 1)
+                val total = page.optInt("total", pageMessages.length())
+                val pageSize = page.optInt("pageSize", pageMessages.length())
+                hasMoreMessages = currentPage * pageSize < total
+            }.onFailure { error = it.message }
+        } else {
+            runCatching { withContext(Dispatchers.IO) { api.searchMessages(folder, activeSearch) } }
+                .onSuccess {
+                    messages.replace(it)
+                    currentPage = 1
+                    hasMoreMessages = false
+                }.onFailure { error = it.message }
+        }
         loading = false
+    }
+    fun loadMoreMessages() {
+        if (loadingMore || activeSearch.isNotBlank() || !hasMoreMessages) return
+        loadingMore = true
+        Thread {
+            runCatching { api.messagePage(folder, currentPage + 1) }
+                .onSuccess { page ->
+                    runOnMain {
+                        val pageMessages = page.getJSONArray("messages")
+                        repeat(pageMessages.length()) { messages.add(pageMessages.getJSONObject(it)) }
+                        currentPage = page.optInt("page", currentPage + 1)
+                        val total = page.optInt("total", messages.size)
+                        val pageSize = page.optInt("pageSize", pageMessages.length())
+                        hasMoreMessages = currentPage * pageSize < total
+                        loadingMore = false
+                    }
+                }
+                .onFailure { runOnMain { error = it.message; loadingMore = false } }
+        }.start()
     }
     fun replaceMessage(uid: Int, patch: JSONObject.() -> Unit) {
         val index = messages.indexOfFirst { it.optInt("uid") == uid }
@@ -509,6 +545,16 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 Text("Spam")
                             }
                         }
+                    }
+                }
+            }
+            if (hasMoreMessages && activeSearch.isBlank()) {
+                item {
+                    Button(
+                        onClick = { loadMoreMessages() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (loadingMore) "Loading..." else "Load more")
                     }
                 }
             }
