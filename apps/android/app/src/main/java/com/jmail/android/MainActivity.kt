@@ -1226,6 +1226,12 @@ private fun MessageDetailScreen(
     }
 
     LaunchedEffect(uid, folder) {
+        detail = null
+        error = null
+        attachmentStatus = null
+        downloadingPartId = null
+        moving = false
+        confirmingAction = null
         runCatching { withContext(Dispatchers.IO) { api.message(folder, uid) } }
             .onSuccess { detail = it }
             .onFailure { error = it.message }
