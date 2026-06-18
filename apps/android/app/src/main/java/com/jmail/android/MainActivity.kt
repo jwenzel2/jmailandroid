@@ -1933,6 +1933,7 @@ private fun CalendarEventCard(
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
+    val eventId = event.optString("id")
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(event.optString("title"), style = MaterialTheme.typography.titleMedium)
@@ -1955,11 +1956,11 @@ private fun CalendarEventCard(
                                     deleting = true
                                     onError(null)
                                     Thread {
-                                        runCatching { api.deleteEvent(event.optString("id")) }
+                                        runCatching { api.deleteEvent(eventId) }
                                             .onSuccess {
                                                 runOnMain {
                                                     deleting = false
-                                                    rows.remove(event)
+                                                    rows.removeAll { it.optString("id") == eventId }
                                                 }
                                             }
                                             .onFailure {
