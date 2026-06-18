@@ -1278,11 +1278,19 @@ private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit)
                 enabled = !sending,
                 onClick = {
                     val toText = to.trim()
+                    val ccText = cc.trim()
+                    val bccText = bcc.trim()
                     val subjectText = subject.trim()
                     val bodyText = body.trim()
                     if (toText.isBlank()) {
                         status = "Enter at least one recipient."
                         return@Button
+                    }
+                    listOf("To" to toText, "Cc" to ccText, "Bcc" to bccText).forEach { (label, value) ->
+                        invalidRecipients(value).takeIf { it.isNotEmpty() }?.let {
+                            status = "$label has invalid recipient(s): ${it.joinToString(", ")}"
+                            return@Button
+                        }
                     }
                     if (subjectText.isBlank() && bodyText.isBlank()) {
                         status = "Enter a subject or message body."
@@ -1294,8 +1302,8 @@ private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit)
                         runCatching {
                             api.send(
                                 to = toText,
-                                cc = cc,
-                                bcc = bcc,
+                                cc = ccText,
+                                bcc = bccText,
                                 subject = subjectText,
                                 text = bodyText,
                                 inReplyToUid = draft.inReplyToUid,
@@ -2015,6 +2023,16 @@ private fun JSONObject.accountLabel(): String = cleanString("displayName") ?: cl
 private fun JSONObject.contactTitle(): String = cleanString("displayName") ?: cleanString("email") ?: "Untitled contact"
 
 private fun hostWithPort(host: String, port: Int): String = if (port > 0) "$host:$port" else host
+
+private fun invalidRecipients(value: String): List<String> =
+    value
+        .split(',', ';')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .filterNot { recipient ->
+            val email = recipient.substringAfterLast('<').substringBefore('>').trim()
+            email.contains("@") && email.substringAfter("@").contains(".")
+        }
 
 private fun addressLine(label: String, addresses: JSONArray?): String {
     if (addresses == null || addresses.length() == 0) return "$label: "
