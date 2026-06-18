@@ -427,7 +427,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             runCatching { api.action(folder, uid, action) }
                 .onSuccess {
                     runOnMain {
-                        if (removeFromList) messages.remove(message)
+                        if (removeFromList) messages.removeAll { it.optInt("uid") == uid }
                         patch?.let { replaceMessage(uid, it) }
                         messageActionUids = messageActionUids - uid
                         refreshNonce++
@@ -682,9 +682,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val uid = message.optInt("uid")
                 val selectedForBulk = selectedMessageUids.contains(uid)
                 val actionInFlight = messageActionUids.contains(uid)
+                val rowEnabled = !mailBusy && !actionInFlight
                 Card(
                     onClick = {
-                        if (!bulkActionInFlight && !actionInFlight) {
+                        if (rowEnabled) {
                             if (selectingMessages) {
                                 selectedMessageUids =
                                     if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
@@ -716,7 +717,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         Text(message.optString("preview"))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
-                                enabled = !actionInFlight,
+                                enabled = rowEnabled,
                                 onClick = {
                                     runMessageAction(
                                         message,
@@ -726,7 +727,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 },
                             ) { Text(if (seen) "Unread" else "Read") }
                             Button(
-                                enabled = !actionInFlight,
+                                enabled = rowEnabled,
                                 onClick = {
                                     runMessageAction(
                                         message,
@@ -737,7 +738,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                             ) { Text(if (flagged) "Unstar" else "Star") }
                             Button(
                                 onClick = { runMessageAction(message, "markSpam", removeFromList = true) },
-                                enabled = !actionInFlight,
+                                enabled = rowEnabled,
                             ) {
                                 Text(if (actionInFlight) "Working..." else "Spam")
                             }
