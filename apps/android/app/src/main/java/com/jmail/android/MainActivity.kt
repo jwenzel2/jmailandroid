@@ -1716,13 +1716,30 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = close) { Text("Cancel") }
             Button(onClick = {
+                val titleText = title.trim()
+                if (titleText.isBlank()) {
+                    status = "Enter an event title."
+                    return@Button
+                }
+                val startsAt = runCatching { eventIsoString(startDate, startTime) }
+                    .getOrElse {
+                        status = "Enter a valid start date and time."
+                        return@Button
+                    }
+                val endsAt = runCatching { eventIsoString(endDate, endTime) }
+                    .getOrElse {
+                        status = "Enter a valid end date and time."
+                        return@Button
+                    }
+                if (!Instant.parse(endsAt).isAfter(Instant.parse(startsAt))) {
+                    status = "End time must be after start time."
+                    return@Button
+                }
                 status = "Saving..."
                 Thread {
                     runCatching {
-                        val startsAt = eventIsoString(startDate, startTime)
-                        val endsAt = eventIsoString(endDate, endTime)
-                        if (eventId == null) api.createEvent(title, startsAt, endsAt, location)
-                        else api.updateEvent(eventId, title, startsAt, endsAt, location)
+                        if (eventId == null) api.createEvent(titleText, startsAt, endsAt, location.trim())
+                        else api.updateEvent(eventId, titleText, startsAt, endsAt, location.trim())
                     }
                         .onSuccess { runOnMain { done(it) } }
                         .onFailure { runOnMain { status = it.message } }
