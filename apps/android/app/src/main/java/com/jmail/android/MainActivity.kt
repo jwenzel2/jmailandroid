@@ -1660,13 +1660,14 @@ private fun ContactDetail(contact: JSONObject, back: () -> Unit, edit: () -> Uni
 
 @Composable
 private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () -> Unit, done: (JSONObject) -> Unit) {
-    var name by remember { mutableStateOf(contact?.cleanString("displayName").orEmpty()) }
-    var email by remember { mutableStateOf(contact?.cleanString("email").orEmpty()) }
-    var phone by remember { mutableStateOf(contact?.cleanString("phone").orEmpty()) }
-    var company by remember { mutableStateOf(contact?.cleanString("company").orEmpty()) }
-    var notes by remember { mutableStateOf(contact?.cleanString("notes").orEmpty()) }
-    var status by remember { mutableStateOf<String?>(null) }
-    var saving by remember { mutableStateOf(false) }
+    val contactId = contact?.cleanString("id")
+    var name by remember(contactId) { mutableStateOf(contact?.cleanString("displayName").orEmpty()) }
+    var email by remember(contactId) { mutableStateOf(contact?.cleanString("email").orEmpty()) }
+    var phone by remember(contactId) { mutableStateOf(contact?.cleanString("phone").orEmpty()) }
+    var company by remember(contactId) { mutableStateOf(contact?.cleanString("company").orEmpty()) }
+    var notes by remember(contactId) { mutableStateOf(contact?.cleanString("notes").orEmpty()) }
+    var status by remember(contactId) { mutableStateOf<String?>(null) }
+    var saving by remember(contactId) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (contact == null) "New contact" else "Edit contact", style = MaterialTheme.typography.headlineSmall)
         OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Name") })
@@ -1695,7 +1696,7 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
                 Thread {
                     runCatching {
                         if (contact == null) api.createContact(nameText, emailText, phoneText, companyText, notesText)
-                        else api.updateContact(contact.optString("id"), nameText, emailText, phoneText, companyText, notesText)
+                        else api.updateContact(contactId.orEmpty(), nameText, emailText, phoneText, companyText, notesText)
                     }
                         .onSuccess { runOnMain { done(it) } }
                         .onFailure {
