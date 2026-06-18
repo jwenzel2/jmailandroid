@@ -248,6 +248,12 @@ private fun Onboarding(session: SessionStore, api: JmailApi, error: String?, log
     var server by remember { mutableStateOf(session.serverUrl ?: "") }
     var status by remember { mutableStateOf(error) }
     var connecting by remember { mutableStateOf(false) }
+    LaunchedEffect(error) {
+        if (error != null) {
+            connecting = false
+            status = error
+        }
+    }
     Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center) {
         Text("Connect to jmail", style = MaterialTheme.typography.headlineMedium)
         Text("Your organization server provides identity, mail accounts, calendar, contacts, and push.")
