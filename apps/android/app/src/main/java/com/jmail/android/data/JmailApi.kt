@@ -49,6 +49,14 @@ class JmailApi(private val session: SessionStore) {
         authenticated = false,
     )
 
+    fun renewMobileToken(): JSONObject =
+        request("/api/v1/mobile/token", "POST").also {
+            val token = it.optString("accessToken")
+            if (token.isNotBlank()) {
+                session.saveAccessToken(token, it.optString("expiresAt").takeIf { value -> value.isNotBlank() })
+            }
+        }
+
     fun me(): JSONObject = request("/api/v1/me")
     fun accounts(): JSONArray = request("/api/v1/accounts").getJSONArray("accounts")
     fun folders(): JSONArray = requestArray("/api/mail/folders")
@@ -197,6 +205,7 @@ class JmailApi(private val session: SessionStore) {
     private fun requestArray(path: String): JSONArray = JSONArray(requestText(path))
 
     private fun requestBytes(path: String): ByteArray {
+        renewMobileTokenIfNeeded()
         val connection = openConnection(path)
         connection.setRequestProperty("Accept", "*/*")
         connection.setRequestProperty("Authorization", "Bearer $accessToken")
@@ -214,6 +223,7 @@ class JmailApi(private val session: SessionStore) {
         body: JSONObject? = null,
         authenticated: Boolean = true,
     ): String {
+        if (authenticated && path != "/api/v1/mobile/token") renewMobileTokenIfNeeded()
         val connection = openConnection(path)
         connection.requestMethod = method
         connection.setRequestProperty("Accept", "application/json")
@@ -232,6 +242,11 @@ class JmailApi(private val session: SessionStore) {
             error("HTTP ${connection.responseCode}: $text")
         }
         return text
+    }
+
+    private fun renewMobileTokenIfNeeded() {
+        if (!session.isAccessTokenExpiringSoon()) return
+        renewMobileToken()
     }
 
     private fun openConnection(path: String): HttpURLConnection {

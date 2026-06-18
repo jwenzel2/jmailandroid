@@ -55,12 +55,15 @@ export async function mobileRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/compatibility', async () => ({
     service: 'jmail',
     apiVersion: 1,
-    features: ['mail-accounts', 'mail', 'calendar', 'contacts', 'fcm-devices'],
+    features: ['mail-accounts', 'mail', 'calendar', 'contacts', 'fcm-devices', 'mobile-token-renewal'],
   }));
 
   app.post('/api/v1/mobile/token', { preHandler: requireAuth }, async (req) => {
     if (!req.sessionId) throw new Error('missing_session');
-    return createMobileToken(req.currentUser!.id, req.sessionId);
+    const token = await createMobileToken(req.currentUser!.id, req.sessionId);
+    const oldToken = bearer(req);
+    if (oldToken) await revokeMobileToken(oldToken);
+    return token;
   });
 
   app.get('/api/v1/mobile/login', async (req, reply) => {

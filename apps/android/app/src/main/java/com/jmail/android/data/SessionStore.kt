@@ -45,6 +45,12 @@ class SessionStore(context: Context) {
             return runCatching { Instant.parse(expiresAt).isBefore(Instant.now()) }.getOrDefault(true)
         }
 
+    fun isAccessTokenExpiringSoon(windowSeconds: Long = 7 * 24 * 60 * 60): Boolean {
+        val expiresAt = accessTokenExpiresAt ?: return false
+        val threshold = Instant.now().plusSeconds(windowSeconds)
+        return runCatching { Instant.parse(expiresAt).isBefore(threshold) }.getOrDefault(true)
+    }
+
     fun saveAccessToken(token: String, expiresAt: String?) {
         accessToken = token
         accessTokenExpiresAt = expiresAt
