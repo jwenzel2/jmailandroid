@@ -1066,10 +1066,19 @@ private fun MessageDetailScreen(
 ) {
     var detail by remember { mutableStateOf<JSONObject?>(null) }
     var moving by remember { mutableStateOf(false) }
+    var confirmingAction by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attachmentStatus by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val uid = summary.optInt("uid")
+
+    fun runDestructiveMessageAction(action: String) {
+        Thread {
+            runCatching { api.action(folder, uid, action) }
+                .onSuccess { runOnMain(afterAction) }
+                .onFailure { runOnMain { error = it.message } }
+        }.start()
+    }
 
     LaunchedEffect(uid, folder) {
         runCatching { withContext(Dispatchers.IO) { api.message(folder, uid) } }
@@ -1130,13 +1139,33 @@ private fun MessageDetailScreen(
                             }.start()
                         }) { Text(if (flagged) "Unstar" else "Star") }
                         Button(onClick = { moving = !moving }) { Text(if (moving) "Cancel move" else "Move") }
-                        Button(onClick = {
-                            Thread {
-                                runCatching { api.action(folder, uid, "delete") }
-                                    .onSuccess { runOnMain(afterAction) }
-                                    .onFailure { runOnMain { error = it.message } }
-                            }.start()
-                        }) { Text("Delete") }
+                        Button(onClick = { confirmingAction = "markSpam" }) { Text("Spam") }
+                        Button(onClick = { confirmingAction = "delete" }) { Text("Delete") }
+                    }
+                }
+                confirmingAction?.let { action ->
+                    item {
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    if (action == "delete") "Delete this message?" else "Mark this message as spam?",
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    if (action == "delete") {
+                                        "This moves the message out of the current folder."
+                                    } else {
+                                        "This moves the message to spam and removes it from this list."
+                                    },
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = { confirmingAction = null }) { Text("Cancel") }
+                                    Button(onClick = { runDestructiveMessageAction(if (action == "delete") "delete" else "markSpam") }) {
+                                        Text(if (action == "delete") "Delete" else "Mark spam")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 if (moving) {
