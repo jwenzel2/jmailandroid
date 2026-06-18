@@ -43,6 +43,29 @@ cd apps/android
 JAVA_HOME=/opt/android-studio/jbr ANDROID_HOME=$HOME/Android/Sdk ./gradlew :app:assembleDebug
 ```
 
+## Release Signing
+
+Release signing is configured but intentionally does not store secrets in the repository. Provide
+signing values either as environment variables:
+
+```bash
+export JMAILANDROID_KEYSTORE_FILE=/absolute/path/to/jmailandroid-release.jks
+export JMAILANDROID_KEYSTORE_PASSWORD=...
+export JMAILANDROID_KEY_ALIAS=...
+export JMAILANDROID_KEY_PASSWORD=...
+cd apps/android
+./gradlew :app:assembleRelease
+```
+
+Or create an untracked `apps/android/keystore.properties` file:
+
+```properties
+storeFile=/absolute/path/to/jmailandroid-release.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
 ## Server Requirements
 
 The Android app expects a deployed jmail server that exposes:
@@ -83,5 +106,5 @@ Firebase configuration:
 
 - Deploy the mobile token renewal API and verify long-lived login against production.
 - Verify server-side account provisioning against the production mobile API.
-- Add release signing, store-ready privacy notes, and final release notes.
+- Add store-ready privacy notes and final release notes.
 - Perform a full real-device QA pass against `mail.jwenzel.net`.
