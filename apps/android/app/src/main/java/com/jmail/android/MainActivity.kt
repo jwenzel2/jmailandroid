@@ -53,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -199,6 +200,15 @@ private fun JmailApp(
 ) {
     var loggedIn by remember { mutableStateOf(session.isSignedIn) }
     var error by remember { mutableStateOf<String?>(null) }
+    DisposableEffect(api) {
+        api.onSessionExpired = { message ->
+            runOnMain {
+                error = message
+                loggedIn = false
+            }
+        }
+        onDispose { api.onSessionExpired = null }
+    }
     LaunchedEffect(Unit) {
         if (session.accessToken != null && !session.isSignedIn) {
             session.clearAccessToken()

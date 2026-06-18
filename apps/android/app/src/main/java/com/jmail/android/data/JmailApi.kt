@@ -7,6 +7,8 @@ import java.net.URI
 import java.net.URLEncoder
 
 class JmailApi(private val session: SessionStore) {
+    var onSessionExpired: ((String) -> Unit)? = null
+
     var darkTheme: Boolean
         get() = session.darkTheme
         set(value) {
@@ -28,8 +30,7 @@ class JmailApi(private val session: SessionStore) {
     private val accessToken: String
         get() {
             if (session.isAccessTokenExpired) {
-                session.clearAccessToken()
-                error("Your mobile session expired. Sign in again.")
+                expireSession()
             }
             return session.accessToken ?: error("You are not signed in.")
         }
@@ -212,6 +213,7 @@ class JmailApi(private val session: SessionStore) {
         val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
         val bytes = stream.use { it.readBytes() }
         if (connection.responseCode !in 200..299) {
+            if (connection.responseCode == 401) expireSession()
             error("HTTP ${connection.responseCode}: ${bytes.toString(Charsets.UTF_8)}")
         }
         return bytes
@@ -236,6 +238,7 @@ class JmailApi(private val session: SessionStore) {
         val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
         val text = stream.bufferedReader().use { it.readText() }
         if (connection.responseCode !in 200..299) {
+            if (connection.responseCode == 401) expireSession()
             if (connection.responseCode == 404 && connection.url.toString().endsWith("/api/v1/compatibility")) {
                 error("This server does not expose the jmail mobile API yet. Deploy the updated jmail-api and proxy /api/v1/* to it.")
             }
@@ -252,5 +255,12 @@ class JmailApi(private val session: SessionStore) {
     private fun openConnection(path: String): HttpURLConnection {
         val url = if (path.startsWith("http")) path else "$serverUrl$path"
         return URI.create(url).toURL().openConnection() as HttpURLConnection
+    }
+
+    private fun expireSession(): Nothing {
+        val message = "Your mobile session expired. Sign in again."
+        session.clearAccessToken()
+        onSessionExpired?.invoke(message)
+        error(message)
     }
 }
