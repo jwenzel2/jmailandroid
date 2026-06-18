@@ -70,6 +70,7 @@ keyPassword=...
 
 - Privacy notes template: [`docs/PRIVACY.md`](docs/PRIVACY.md)
 - Release notes template: [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
+- Real-device QA checklist: [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md)
 
 ## Server Requirements
 
@@ -112,4 +113,4 @@ Firebase configuration:
 - Deploy the mobile token renewal API and verify long-lived login against production.
 - Verify server-side account provisioning against the production mobile API.
 - Finalize store privacy disclosures for the actual deployment.
-- Perform a full real-device QA pass against `mail.jwenzel.net`.
+- Complete and record a full real-device QA pass against `mail.jwenzel.net`.
