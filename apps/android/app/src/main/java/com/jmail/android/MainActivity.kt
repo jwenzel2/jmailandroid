@@ -1031,37 +1031,37 @@ private fun AccountEditorScreen(
                                 }
                         }.start()
                     },
-                ) { Text("Save") }
+                ) { Text(if (saving) "Saving..." else "Save") }
             }
         }
         item { Text(if (editing) "Edit mail account" else "Add mail account", style = MaterialTheme.typography.headlineSmall) }
-        item { OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Email address") }) }
-        item { OutlinedTextField(displayName, { displayName = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Display name") }) }
+        item { OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text("Email address") }) }
+        item { OutlinedTextField(displayName, { displayName = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text("Display name") }) }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { selectProtocol("imap") }, enabled = protocol != "imap", modifier = Modifier.weight(1f)) {
+                Button(onClick = { selectProtocol("imap") }, enabled = !saving && protocol != "imap", modifier = Modifier.weight(1f)) {
                     Text("IMAP")
                 }
-                Button(onClick = { selectProtocol("pop3") }, enabled = protocol != "pop3", modifier = Modifier.weight(1f)) {
+                Button(onClick = { selectProtocol("pop3") }, enabled = !saving && protocol != "pop3", modifier = Modifier.weight(1f)) {
                     Text("POP3")
                 }
             }
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { authType = "keycloak" }, enabled = authType != "keycloak", modifier = Modifier.weight(1f)) {
+                Button(onClick = { authType = "keycloak" }, enabled = !saving && authType != "keycloak", modifier = Modifier.weight(1f)) {
                     Text("Keycloak")
                 }
-                Button(onClick = { authType = "password" }, enabled = authType != "password", modifier = Modifier.weight(1f)) {
+                Button(onClick = { authType = "password" }, enabled = !saving && authType != "password", modifier = Modifier.weight(1f)) {
                     Text("Password")
                 }
             }
         }
-        item { OutlinedTextField(incomingHost, { incomingHost = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (protocol == "imap") "IMAP host" else "POP3 host") }) }
-        item { OutlinedTextField(incomingPort, { incomingPort = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (protocol == "imap") "IMAP port" else "POP3 port") }) }
-        item { OutlinedTextField(smtpHost, { smtpHost = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("SMTP host") }) }
-        item { OutlinedTextField(smtpPort, { smtpPort = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("SMTP port") }) }
-        item { OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") }, placeholder = { Text("Defaults to email address") }) }
+        item { OutlinedTextField(incomingHost, { incomingHost = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text(if (protocol == "imap") "IMAP host" else "POP3 host") }) }
+        item { OutlinedTextField(incomingPort, { incomingPort = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text(if (protocol == "imap") "IMAP port" else "POP3 port") }) }
+        item { OutlinedTextField(smtpHost, { smtpHost = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text("SMTP host") }) }
+        item { OutlinedTextField(smtpPort, { smtpPort = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text("SMTP port") }) }
+        item { OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), singleLine = true, enabled = !saving, label = { Text("Username") }, placeholder = { Text("Defaults to email address") }) }
         if (authType == "password") {
             item {
                 OutlinedTextField(
@@ -1069,6 +1069,7 @@ private fun AccountEditorScreen(
                     { secret = it },
                     Modifier.fillMaxWidth(),
                     singleLine = true,
+                    enabled = !saving,
                     label = { Text("Password or app password") },
                     placeholder = { if (editing) Text("Leave blank to keep current secret") },
                 )
@@ -1079,13 +1080,13 @@ private fun AccountEditorScreen(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Enable notifications")
-                Switch(checked = notifications, onCheckedChange = { notifications = it })
+                Switch(checked = notifications, onCheckedChange = { notifications = it }, enabled = !saving)
             }
         }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Leave mail on server")
-                Switch(checked = leaveOnServer, onCheckedChange = { leaveOnServer = it })
+                Switch(checked = leaveOnServer, onCheckedChange = { leaveOnServer = it }, enabled = !saving)
             }
         }
         status?.let {
