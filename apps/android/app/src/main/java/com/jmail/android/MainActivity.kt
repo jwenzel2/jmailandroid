@@ -327,6 +327,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var selectingMessages by remember { mutableStateOf(false) }
     var movingSelected by remember { mutableStateOf(false) }
     var confirmingBulkDelete by remember { mutableStateOf(false) }
+    var bulkActionInFlight by remember { mutableStateOf(false) }
     var selectedMessageUids by remember { mutableStateOf(setOf<Int>()) }
     var selectedAccount by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
@@ -405,16 +406,21 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
         }.start()
     }
     fun runBulkMessageAction(action: String, removeFromList: Boolean = false, targetFolder: String? = null, patch: (JSONObject.() -> Unit)? = null) {
-        val uids = selectedMessageUids.toList()
+        if (bulkActionInFlight) return
+        val uidSet = selectedMessageUids
+        val uids = uidSet.toList()
         if (uids.isEmpty()) return
+        bulkActionInFlight = true
+        error = null
         Thread {
             runCatching { api.action(folder, uids, action, targetFolder) }
                 .onSuccess {
                     runOnMain {
-                        if (removeFromList) messages.removeAll { selectedMessageUids.contains(it.optInt("uid")) }
+                        if (removeFromList) messages.removeAll { uidSet.contains(it.optInt("uid")) }
                         patch?.let {
                             uids.forEach { uid -> replaceMessage(uid, patch) }
                         }
+                        bulkActionInFlight = false
                         selectedMessageUids = emptySet()
                         selectingMessages = false
                         movingSelected = false
@@ -422,7 +428,12 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         refreshNonce++
                     }
                 }
-                .onFailure { runOnMain { error = it.message } }
+                .onFailure {
+                    runOnMain {
+                        bulkActionInFlight = false
+                        error = it.message
+                    }
+                }
         }.start()
     }
     if (addingAccount) {
@@ -511,7 +522,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selectedMessageUids = emptySet()
                         movingSelected = false
                         confirmingBulkDelete = false
-                    }) { Text(if (selectingMessages) "Cancel" else "Select") }
+                    }, enabled = !bulkActionInFlight) { Text(if (selectingMessages) "Cancel" else "Select") }
                     Button(onClick = { refreshNonce++ }) { Text("Refresh") }
                 }
             }
@@ -562,22 +573,34 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             if (selectingMessages && selectedMessageUids.isNotEmpty()) {
                 item {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { runBulkMessageAction("markSeen", patch = { put("seen", true) }) }) {
+                        Button(
+                            onClick = { runBulkMessageAction("markSeen", patch = { put("seen", true) }) },
+                            enabled = !bulkActionInFlight,
+                        ) {
                             Text("Read")
                         }
-                        Button(onClick = { runBulkMessageAction("markUnseen", patch = { put("seen", false) }) }) {
+                        Button(
+                            onClick = { runBulkMessageAction("markUnseen", patch = { put("seen", false) }) },
+                            enabled = !bulkActionInFlight,
+                        ) {
                             Text("Unread")
                         }
-                        Button(onClick = { runBulkMessageAction("flag", patch = { put("flagged", true) }) }) {
+                        Button(
+                            onClick = { runBulkMessageAction("flag", patch = { put("flagged", true) }) },
+                            enabled = !bulkActionInFlight,
+                        ) {
                             Text("Star")
                         }
-                        Button(onClick = { runBulkMessageAction("unflag", patch = { put("flagged", false) }) }) {
+                        Button(
+                            onClick = { runBulkMessageAction("unflag", patch = { put("flagged", false) }) },
+                            enabled = !bulkActionInFlight,
+                        ) {
                             Text("Unstar")
                         }
-                        Button(onClick = { movingSelected = !movingSelected }) {
+                        Button(onClick = { movingSelected = !movingSelected }, enabled = !bulkActionInFlight) {
                             Text(if (movingSelected) "Cancel move" else "Move")
                         }
-                        Button(onClick = { confirmingBulkDelete = true }) {
+                        Button(onClick = { confirmingBulkDelete = true }, enabled = !bulkActionInFlight) {
                             Text("Delete (${selectedMessageUids.size})")
                         }
                     }
@@ -589,9 +612,12 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 Text("Delete selected messages?", style = MaterialTheme.typography.titleMedium)
                                 Text("This moves ${selectedMessageUids.size} selected message(s) out of the current folder.")
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { confirmingBulkDelete = false }) { Text("Cancel") }
-                                    Button(onClick = { runBulkMessageAction("delete", removeFromList = true) }) {
-                                        Text("Delete selected")
+                                    Button(onClick = { confirmingBulkDelete = false }, enabled = !bulkActionInFlight) { Text("Cancel") }
+                                    Button(
+                                        onClick = { runBulkMessageAction("delete", removeFromList = true) },
+                                        enabled = !bulkActionInFlight,
+                                    ) {
+                                        Text(if (bulkActionInFlight) "Deleting..." else "Delete selected")
                                     }
                                 }
                             }
@@ -604,6 +630,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         val targetPath = target.optString("path")
                         Button(
                             onClick = { runBulkMessageAction("move", removeFromList = true, targetFolder = targetPath) },
+                            enabled = !bulkActionInFlight,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(target.optString("name").ifBlank { targetPath })
@@ -619,12 +646,14 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val selectedForBulk = selectedMessageUids.contains(uid)
                 Card(
                     onClick = {
-                        if (selectingMessages) {
-                            selectedMessageUids =
-                                if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
-                            confirmingBulkDelete = false
-                        } else {
-                            selected = message
+                        if (!bulkActionInFlight) {
+                            if (selectingMessages) {
+                                selectedMessageUids =
+                                    if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
+                                confirmingBulkDelete = false
+                            } else {
+                                selected = message
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
