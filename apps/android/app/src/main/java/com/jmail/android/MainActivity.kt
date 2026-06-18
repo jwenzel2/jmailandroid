@@ -517,6 +517,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
         return
     }
     selected?.let {
+        val selectedUid = it.optInt("uid")
         MessageDetailScreen(
             api = api,
             summary = it,
@@ -528,7 +529,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 compose(draft)
             },
             afterAction = {
-                messages.remove(it)
+                messages.removeAll { message -> message.optInt("uid") == selectedUid }
                 selected = null
             },
             afterPatch = { patch ->
