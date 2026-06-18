@@ -993,7 +993,7 @@ private fun CalendarScreen(api: JmailApi) {
         }.onSuccess { rows.replace(it) }.onFailure { error = it.message }
     }
     if (adding) {
-        EventEditor(api, close = { adding = false }) {
+        EventEditor(api, initialDay = anchor, close = { adding = false }) {
             adding = false
             rows.add(it)
         }
@@ -1202,8 +1202,14 @@ private fun CalendarEventCard(
 }
 
 @Composable
-private fun EventEditor(api: JmailApi, event: JSONObject? = null, close: () -> Unit, done: (JSONObject) -> Unit) {
-    val defaultStart = remember { Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MINUTES) }
+private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: LocalDate? = null, close: () -> Unit, done: (JSONObject) -> Unit) {
+    val defaultStart = remember(initialDay) {
+        if (initialDay == null) {
+            Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MINUTES)
+        } else {
+            initialDay.atTime(9, 0).atZone(ZoneId.systemDefault()).toInstant()
+        }
+    }
     val eventId = event?.optString("id").orEmpty().takeIf { it.isNotBlank() }
     val initialStartsAt = event?.cleanString("startsAt") ?: defaultStart.toString()
     val initialEndsAt = event?.cleanString("endsAt") ?: defaultStart.plus(1, ChronoUnit.HOURS).toString()
