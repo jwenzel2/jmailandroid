@@ -2045,6 +2045,7 @@ private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChang
     var notificationsEnabled by remember { mutableStateOf(api.notificationsEnabled) }
     var profile by remember { mutableStateOf<JSONObject?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
+    var notificationBusy by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         runCatching { withContext(Dispatchers.IO) { api.me().optJSONObject("user") } }
             .onSuccess { profile = it }
@@ -2079,6 +2080,7 @@ private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChang
                     Text("Receive new mail notifications")
                     Switch(
                         checked = notificationsEnabled,
+                        enabled = !notificationBusy,
                         onCheckedChange = { enabled ->
                             notificationsEnabled = enabled
                             api.notificationsEnabled = enabled
@@ -2086,18 +2088,31 @@ private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChang
                                 registerPush()
                                 status = "Notification registration requested."
                             } else {
+                                notificationBusy = true
                                 status = "Disabling notifications..."
                                 Thread {
                                     runCatching { api.unregisterDevice() }
-                                        .onSuccess { runOnMain { status = "Notifications disabled for this device." } }
-                                        .onFailure { runOnMain { status = it.message } }
+                                        .onSuccess {
+                                            runOnMain {
+                                                notificationBusy = false
+                                                status = "Notifications disabled for this device."
+                                            }
+                                        }
+                                        .onFailure {
+                                            runOnMain {
+                                                notificationBusy = false
+                                                notificationsEnabled = true
+                                                api.notificationsEnabled = true
+                                                status = it.message
+                                            }
+                                        }
                                 }.start()
                             }
                         },
                     )
                 }
                 Text("Re-register this device if notifications stop arriving or after server changes.")
-                Button(onClick = {
+                Button(enabled = !notificationBusy, onClick = {
                     api.notificationsEnabled = true
                     notificationsEnabled = true
                     registerPush()
