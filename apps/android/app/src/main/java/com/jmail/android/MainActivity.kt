@@ -1471,7 +1471,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selecting = !selecting
                         selectedIds = emptySet()
                         confirmingDelete = false
-                    }) { Text(if (selecting) "Cancel" else "Select") }
+                    }, enabled = !deleting) { Text(if (selecting) "Cancel" else "Select") }
                 }
             }
             item {
@@ -1481,10 +1481,11 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         { query = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
+                        enabled = !deleting,
                         label = { Text("Search contacts") },
                     )
                     if (query.isNotBlank()) {
-                        Button(onClick = { query = "" }) { Text("Clear") }
+                        Button(onClick = { query = "" }, enabled = !deleting) { Text("Clear") }
                     }
                 }
             }
@@ -1506,19 +1507,22 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                         enabled = !deleting,
                                         onClick = {
                                             val ids = selectedIds
+                                            if (ids.isEmpty()) return@Button
                                             deleting = true
                                             error = null
                                             Thread {
-                                                val failures = ids.count { id -> runCatching { api.deleteContact(id) }.isFailure }
+                                                val failedIds = ids.filter { id -> runCatching { api.deleteContact(id) }.isFailure }.toSet()
+                                                val deletedIds = ids - failedIds
                                                 runOnMain {
                                                     deleting = false
-                                                    if (failures == 0) {
-                                                        rows.removeAll { ids.contains(it.optString("id")) }
+                                                    rows.removeAll { deletedIds.contains(it.optString("id")) }
+                                                    if (failedIds.isEmpty()) {
                                                         selectedIds = emptySet()
                                                         selecting = false
                                                         confirmingDelete = false
                                                     } else {
-                                                        error = "Failed to delete $failures contact(s)."
+                                                        selectedIds = failedIds
+                                                        error = "Deleted ${deletedIds.size} contact(s). Failed to delete ${failedIds.size} contact(s)."
                                                     }
                                                 }
                                             }.start()
@@ -1540,11 +1544,13 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val id = contact.optString("id")
                 Card(
                     onClick = {
-                        if (selecting) {
-                            selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
-                            confirmingDelete = false
-                        } else {
-                            selectedContact = contact
+                        if (!deleting) {
+                            if (selecting) {
+                                selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
+                                confirmingDelete = false
+                            } else {
+                                selectedContact = contact
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -1560,7 +1566,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             }
         }
         FloatingActionButton(
-            onClick = { adding = true },
+            onClick = { if (!deleting) adding = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
             Icon(Icons.Default.Add, "Add contact")
