@@ -66,6 +66,11 @@ keyAlias=...
 keyPassword=...
 ```
 
+## Release Prep
+
+- Privacy notes template: [`docs/PRIVACY.md`](docs/PRIVACY.md)
+- Release notes template: [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
+
 ## Server Requirements
 
 The Android app expects a deployed jmail server that exposes:
@@ -106,5 +111,5 @@ Firebase configuration:
 
 - Deploy the mobile token renewal API and verify long-lived login against production.
 - Verify server-side account provisioning against the production mobile API.
-- Add store-ready privacy notes and final release notes.
+- Finalize store privacy disclosures for the actual deployment.
 - Perform a full real-device QA pass against `mail.jwenzel.net`.
