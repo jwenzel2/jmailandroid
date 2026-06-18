@@ -112,9 +112,11 @@ class SessionStore(context: Context) {
             val withScheme =
                 if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
                 else "https://$trimmed"
-            val uri = URI.create(withScheme)
+            val uri = runCatching { URI.create(withScheme) }.getOrNull() ?: return null
             val port = if (uri.port == -1) "" else ":${uri.port}"
-            return "${uri.scheme}://${uri.host}$port"
+            val scheme = uri.scheme?.takeIf { it == "http" || it == "https" } ?: return null
+            val host = uri.host ?: return null
+            return "$scheme://$host$port"
         }
     }
 }
