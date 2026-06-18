@@ -353,6 +353,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var movingSelected by remember { mutableStateOf(false) }
     var confirmingBulkDelete by remember { mutableStateOf(false) }
     var bulkActionInFlight by remember { mutableStateOf(false) }
+    var messageActionUids by remember { mutableStateOf(setOf<Int>()) }
     var selectedMessageUids by remember { mutableStateOf(setOf<Int>()) }
     var selectedAccount by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf<JSONObject?>(null) }
@@ -418,16 +419,25 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     }
     fun runMessageAction(message: JSONObject, action: String, removeFromList: Boolean = false, patch: (JSONObject.() -> Unit)? = null) {
         val uid = message.optInt("uid")
+        if (messageActionUids.contains(uid)) return
+        messageActionUids = messageActionUids + uid
+        error = null
         Thread {
             runCatching { api.action(folder, uid, action) }
                 .onSuccess {
                     runOnMain {
                         if (removeFromList) messages.remove(message)
                         patch?.let { replaceMessage(uid, it) }
+                        messageActionUids = messageActionUids - uid
                         refreshNonce++
                     }
                 }
-                .onFailure { runOnMain { error = it.message } }
+                .onFailure {
+                    runOnMain {
+                        messageActionUids = messageActionUids - uid
+                        error = it.message
+                    }
+                }
         }.start()
     }
     fun runBulkMessageAction(action: String, removeFromList: Boolean = false, targetFolder: String? = null, patch: (JSONObject.() -> Unit)? = null) {
@@ -669,9 +679,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val hasAttachments = message.optBoolean("hasAttachments")
                 val uid = message.optInt("uid")
                 val selectedForBulk = selectedMessageUids.contains(uid)
+                val actionInFlight = messageActionUids.contains(uid)
                 Card(
                     onClick = {
-                        if (!bulkActionInFlight) {
+                        if (!bulkActionInFlight && !actionInFlight) {
                             if (selectingMessages) {
                                 selectedMessageUids =
                                     if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
@@ -703,6 +714,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         Text(message.optString("preview"))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(
+                                enabled = !actionInFlight,
                                 onClick = {
                                     runMessageAction(
                                         message,
@@ -712,6 +724,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 },
                             ) { Text(if (seen) "Unread" else "Read") }
                             Button(
+                                enabled = !actionInFlight,
                                 onClick = {
                                     runMessageAction(
                                         message,
@@ -720,8 +733,11 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                     )
                                 },
                             ) { Text(if (flagged) "Unstar" else "Star") }
-                            Button(onClick = { runMessageAction(message, "markSpam", removeFromList = true) }) {
-                                Text("Spam")
+                            Button(
+                                onClick = { runMessageAction(message, "markSpam", removeFromList = true) },
+                                enabled = !actionInFlight,
+                            ) {
+                                Text(if (actionInFlight) "Working..." else "Spam")
                             }
                         }
                     }
@@ -731,6 +747,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 item {
                     Button(
                         onClick = { loadMoreMessages() },
+                        enabled = !loadingMore,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(if (loadingMore) "Loading..." else "Load more")
