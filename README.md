@@ -1,98 +1,86 @@
-# jmail
+# jmailandroid
 
-A modern, Roundcube-style **webmail client** that sits in front of an existing, self-operated mail
-stack (**Dovecot** IMAP, **Postfix** submission, **SpamAssassin**). jmail does **not** run the mail
-servers — it connects to the ones you already operate.
+Native Android client for a compatible jmail server.
 
-## Highlights
+The app is built with Kotlin and Jetpack Compose. It connects to the jmail mobile API for Keycloak
+login, mail, contacts, calendar, and push device registration.
 
-- 📬 Roundcube-like 3-pane webmail (IMAP read + SMTP send) over standard protocols.
-- 🔐 Single sign-on via an external **OIDC provider** (Keycloak recommended) supporting **passkeys +
-  OAuth**. The *same* OAuth token authenticates to Dovecot via **XOAUTH2** — no separate mail password.
-- 🛡️ **SpamAssassin** integration: mark mail spam / not-spam in the UI and SpamAssassin's per-user
-  Bayes learns from it (via Dovecot IMAPSieve); admins tune global rules.
-- 🎨 Admin-configurable **branding** — app name (default `jmail`), logo, and theme.
+## Current Features
 
-## Architecture
+- Keycloak/OIDC login through the jmail mobile callback flow.
+- Persistent signed-in session backed by local Android preferences.
+- Mail folders, account/folder drawer, message list, message detail, search, pagination, quick
+  filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
+- Compose, reply, and forward flows with basic client-side validation.
+- Attachment download/share through Android `FileProvider`.
+- Contacts list, search, detail view, create/edit, and multi-select delete.
+- Calendar agenda, week, and month views with create/edit/delete event support.
+- Dark theme setting and blue Material color scheme.
+- Firebase Cloud Messaging registration hooks for mail push notifications.
 
-```
-Browser (React SPA)
-   │ httpOnly session cookie
-   ▼
-jmail-api (Node/Fastify, BFF) ──► OIDC provider (passkeys + OAuth)
-   │            │
-   ▼            ▼  (XOAUTH2 access token)
-Dovecot IMAP   Postfix submission        on the mail host:
-   ▲                                      jmail-agent (SpamAssassin config, IMAPSieve, sa-learn)
-   └── jmail-api ──mTLS/bearer──► jmail-agent
-   │
-   ▼
-PostgreSQL (jmail app data only — no mailbox content)
+## Repository Layout
+
+```text
+apps/android/     Android Studio project
+migrations/       Mobile API database migration copied from the jmail server work
+.env*.example     Server-side environment examples for the compatible jmail API
 ```
 
-See [`docs/plan.md`](docs/plan.md) for the full design and milestones.
-For a production installation under `/opt/jmail`, see
-[`docs/deployment.md`](docs/deployment.md).
+## Build
 
-## Monorepo layout
-
-| Path               | What it is                                                        |
-| ------------------ | ----------------------------------------------------------------- |
-| `apps/web`         | React + Vite SPA (Mantine UI)                                     |
-| `apps/api`         | Node + Fastify backend / BFF                                      |
-| `apps/agent`       | `jmail-agent` daemon — runs **on the mail host**                  |
-| `apps/android`     | Native Kotlin + Jetpack Compose Android client                    |
-| `packages/shared`  | Shared TypeScript types + zod schemas                             |
-| `packaging/`       | Example systemd units, Dovecot config, Keycloak realm             |
-| `migrations/`      | SQL migrations (node-pg-migrate)                                  |
-
-## Quick start (development)
-
-Requires Node ≥ 22, pnpm 9, and a PostgreSQL database.
+Open `apps/android` in Android Studio, or build from the command line:
 
 ```bash
-pnpm install
-cp .env.example .env          # then fill in OIDC + mail server + DB settings
-pnpm migrate                  # create the schema
-pnpm dev                      # runs web + api (+ agent) in watch mode
+cd apps/android
+./gradlew :app:assembleDebug
 ```
 
-For a self-contained local environment (Postgres + Keycloak + a Dovecot/Postfix
-mail server, all wired for XOAUTH2), use the dev helpers:
+This workspace has also been verified with the Android Studio bundled JBR and local Gradle cache:
 
 ```bash
-scripts/dev-db.sh init && scripts/dev-db.sh start   # project-local Postgres
-scripts/dev-up.sh                                    # Keycloak + docker-mailserver
-pnpm migrate && pnpm dev
-node scripts/dev-mail-test.mjs                       # end-to-end send+read smoke test
+cd apps/android
+JAVA_HOME=/opt/android-studio/jbr ANDROID_HOME=$HOME/Android/Sdk ./gradlew :app:assembleDebug
 ```
 
-The Android client connects to a deployed jmail server using the versioned `/api/v1` mobile API.
-Its OIDC client must allow `<PUBLIC_URL>/api/v1/mobile/callback`; Firebase configuration is supplied
-per deployment. See [`apps/android/README.md`](apps/android/README.md).
-For the jwenzel.net deployment, start from [`.env.jwenzel.example`](.env.jwenzel.example).
+## Server Requirements
 
-The SPA is served by Vite (default http://localhost:5173) and proxies API calls to jmail-api
-(http://localhost:4000).
+The Android app expects a deployed jmail server that exposes:
 
-### Prerequisites you provide
+- `GET /api/v1/compatibility`
+- `GET /api/v1/mobile/login`
+- `GET /api/v1/mobile/callback`
+- `POST /api/v1/mobile/exchange`
+- `PUT /api/v1/mobile/devices`
+- `DELETE /api/v1/mobile/devices/:installationId`
+- mail, contact, and calendar API routes used by the original jmail web app
 
-- An **OIDC provider** with passkey support, configured per `packaging/keycloak/`.
-- **Dovecot** configured for `xoauth2`/`oauthbearer` + IMAPSieve (see `packaging/dovecot/`).
-- **Postfix submission** delegating SASL to Dovecot (XOAUTH2).
-- The **`jmail-agent`** installed on the mail host with a low-privilege service account.
+For Keycloak, the OIDC client must allow:
 
-## Scripts
+```text
+https://mail.jwenzel.net/api/v1/mobile/callback
+```
 
-| Command           | Description                                  |
-| ----------------- | -------------------------------------------- |
-| `pnpm dev`        | Run all apps in watch mode                   |
-| `pnpm build`      | Build all packages                           |
-| `pnpm typecheck`  | Type-check all packages                      |
-| `pnpm lint`       | ESLint across the repo                       |
-| `pnpm test`       | Run unit tests (Vitest)                      |
-| `pnpm migrate`    | Apply database migrations                    |
+The debug build defaults to:
 
-## License
+```text
+https://mail.jwenzel.net
+```
 
-TBD.
+Users can still enter a different compatible server URL on the first screen.
+
+## Push Notifications
+
+The app contains Firebase Messaging integration, but production push requires deployment-specific
+Firebase configuration:
+
+- add the generated `google-services.json`
+- apply/configure the Google Services Gradle plugin
+- configure the server to send FCM notifications to registered mobile devices
+
+## Release Work Remaining
+
+- Verify token refresh and long-lived login against the production mobile API.
+- Complete the mobile add-account flow if multiple server-side mail accounts should be added from
+  Android.
+- Add release signing, versioning, app icon, and privacy/release notes.
+- Perform a full real-device QA pass against `mail.jwenzel.net`.
