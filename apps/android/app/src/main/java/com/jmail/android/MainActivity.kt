@@ -1333,12 +1333,14 @@ private fun MessageDetailScreen(
                         val filename = attachment.optString("filename").ifBlank { "Attachment $partId" }
                         val contentType = attachment.optString("contentType").ifBlank { "application/octet-stream" }
                         val downloading = downloadingPartId == partId
+                        val attachmentDownloadInFlight = downloadingPartId != null
                         Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(filename, style = MaterialTheme.typography.titleSmall)
                                 Text("$contentType · ${formatBytes(attachment.optLong("size"))}")
-                                Button(enabled = !downloading, onClick = {
+                                Button(enabled = !attachmentDownloadInFlight, onClick = {
                                     downloadingPartId = partId
+                                    error = null
                                     attachmentStatus = "Downloading $filename..."
                                     Thread {
                                         runCatching { api.downloadAttachment(folder, uid, partId) }
