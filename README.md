@@ -71,6 +71,7 @@ keyPassword=...
 - Privacy notes template: [`docs/PRIVACY.md`](docs/PRIVACY.md)
 - Release notes template: [`docs/RELEASE_NOTES.md`](docs/RELEASE_NOTES.md)
 - Real-device QA checklist: [`docs/QA_CHECKLIST.md`](docs/QA_CHECKLIST.md)
+- Mobile API deployment handoff: [`docs/MOBILE_API_DEPLOYMENT.md`](docs/MOBILE_API_DEPLOYMENT.md)
 
 ## Server Requirements
 
