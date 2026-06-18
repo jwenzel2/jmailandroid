@@ -813,30 +813,56 @@ private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit)
     var subject by remember { mutableStateOf(draft.subject) }
     var body by remember { mutableStateOf(draft.body) }
     var status by remember { mutableStateOf<String?>(null) }
+    var sending by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(close) { Text("Cancel") }
-            Button(onClick = {
-                status = "Sending..."
-                Thread {
-                    runCatching {
-                        api.send(
-                            to = to,
-                            cc = cc,
-                            bcc = bcc,
-                            subject = subject,
-                            text = body,
-                            inReplyToUid = draft.inReplyToUid,
-                            inReplyToFolder = draft.inReplyToFolder,
-                        )
+            Button(close, enabled = !sending) { Text("Cancel") }
+            Button(
+                enabled = !sending,
+                onClick = {
+                    val toText = to.trim()
+                    val subjectText = subject.trim()
+                    val bodyText = body.trim()
+                    if (toText.isBlank()) {
+                        status = "Enter at least one recipient."
+                        return@Button
                     }
-                        .onSuccess { runOnMain { close() } }
-                        .onFailure { runOnMain { status = it.message } }
-                }.start()
-            }) { Text("Send") }
+                    if (subjectText.isBlank() && bodyText.isBlank()) {
+                        status = "Enter a subject or message body."
+                        return@Button
+                    }
+                    sending = true
+                    status = "Sending..."
+                    Thread {
+                        runCatching {
+                            api.send(
+                                to = toText,
+                                cc = cc,
+                                bcc = bcc,
+                                subject = subjectText,
+                                text = bodyText,
+                                inReplyToUid = draft.inReplyToUid,
+                                inReplyToFolder = draft.inReplyToFolder,
+                            )
+                        }
+                            .onSuccess { runOnMain { close() } }
+                            .onFailure {
+                                runOnMain {
+                                    sending = false
+                                    status = it.message
+                                }
+                            }
+                    }.start()
+                }
+            ) { Text("Send") }
         }
         OutlinedTextField(to, { to = it }, Modifier.fillMaxWidth(), label = { Text("To") })
+        Text(
+            "Separate multiple recipients with commas or semicolons.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         OutlinedTextField(cc, { cc = it }, Modifier.fillMaxWidth(), label = { Text("Cc") })
         OutlinedTextField(bcc, { bcc = it }, Modifier.fillMaxWidth(), label = { Text("Bcc") })
         OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text("Subject") })
