@@ -25,6 +25,11 @@ val hasReleaseSigning = listOf(
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { it != null }
+val hasGoogleServicesConfig = file("google-services.json").exists()
+
+if (hasGoogleServicesConfig) {
+    pluginManager.apply("com.google.gms.google-services")
+}
 
 android {
     namespace = "com.jmail.android"
@@ -68,6 +73,7 @@ android {
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.05.00"))
+    implementation(platform("com.google.firebase:firebase-bom:34.15.0"))
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.fragment:fragment-ktx:1.8.9")
@@ -76,6 +82,6 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.browser:browser:1.9.0")
-    implementation("com.google.firebase:firebase-messaging:25.0.1")
+    implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 }

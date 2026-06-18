@@ -1,6 +1,7 @@
 .gradle/
 app/build/
 local.properties
+app/google-services.json
 keystore.properties
 *.jks
 *.keystore

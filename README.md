@@ -104,9 +104,11 @@ Users can still enter a different compatible server URL on the first screen.
 The app contains Firebase Messaging integration, but production push requires deployment-specific
 Firebase configuration:
 
-- add the generated `google-services.json`
-- apply/configure the Google Services Gradle plugin
+- add the generated Firebase config to `apps/android/app/google-services.json`
 - configure the server to send FCM notifications to registered mobile devices
+
+The Google Services Gradle plugin is configured and applies automatically when
+`apps/android/app/google-services.json` exists. The config file is intentionally ignored by git.
 
 ## Release Work Remaining
 
