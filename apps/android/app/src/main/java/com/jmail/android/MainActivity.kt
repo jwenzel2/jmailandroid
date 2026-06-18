@@ -1745,6 +1745,7 @@ private fun CalendarScreen(api: JmailApi) {
                 CalendarHeader(
                     mode = mode,
                     anchor = anchor,
+                    enabled = !loading,
                     onMode = {
                         mode = it
                         if (it == CalendarMode.Agenda) anchor = LocalDate.now()
@@ -1771,6 +1772,7 @@ private fun CalendarScreen(api: JmailApi) {
                     MonthCalendarGrid(
                         anchor = anchor,
                         events = events,
+                        enabled = !loading,
                         selectDay = { anchor = it; mode = CalendarMode.Agenda },
                         onEdit = { editing = it },
                     )
@@ -1778,7 +1780,7 @@ private fun CalendarScreen(api: JmailApi) {
             }
         }
         FloatingActionButton(
-            onClick = { adding = true },
+            onClick = { if (!loading) adding = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
             Icon(Icons.Default.Add, "Add event")
@@ -1792,6 +1794,7 @@ private enum class CalendarMode { Agenda, Week, Month }
 private fun CalendarHeader(
     mode: CalendarMode,
     anchor: LocalDate,
+    enabled: Boolean,
     onMode: (CalendarMode) -> Unit,
     onPrevious: () -> Unit,
     onToday: () -> Unit,
@@ -1800,15 +1803,15 @@ private fun CalendarHeader(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(calendarTitle(anchor, mode), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onMode(CalendarMode.Agenda) }) { Text("Agenda") }
-            Button(onClick = { onMode(CalendarMode.Week) }) { Text("Week") }
-            Button(onClick = { onMode(CalendarMode.Month) }) { Text("Month") }
+            Button(onClick = { onMode(CalendarMode.Agenda) }, enabled = enabled && mode != CalendarMode.Agenda) { Text("Agenda") }
+            Button(onClick = { onMode(CalendarMode.Week) }, enabled = enabled && mode != CalendarMode.Week) { Text("Week") }
+            Button(onClick = { onMode(CalendarMode.Month) }, enabled = enabled && mode != CalendarMode.Month) { Text("Month") }
         }
         if (mode != CalendarMode.Agenda) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onPrevious, modifier = Modifier.weight(1f)) { Text("‹") }
-                Button(onClick = onToday, modifier = Modifier.weight(1.4f).padding(horizontal = 8.dp)) { Text("Today") }
-                Button(onClick = onNext, modifier = Modifier.weight(1f)) { Text("›") }
+                Button(onClick = onPrevious, enabled = enabled, modifier = Modifier.weight(1f)) { Text("‹") }
+                Button(onClick = onToday, enabled = enabled, modifier = Modifier.weight(1.4f).padding(horizontal = 8.dp)) { Text("Today") }
+                Button(onClick = onNext, enabled = enabled, modifier = Modifier.weight(1f)) { Text("›") }
             }
         }
     }
@@ -1836,6 +1839,7 @@ private fun DayColumn(
 private fun MonthCalendarGrid(
     anchor: LocalDate,
     events: List<JSONObject>,
+    enabled: Boolean,
     selectDay: (LocalDate) -> Unit,
     onEdit: (JSONObject) -> Unit,
 ) {
@@ -1866,7 +1870,7 @@ private fun MonthCalendarGrid(
                             .fillMaxHeight()
                             .border(width = 0.5.dp, color = divider)
                             .background(if (inMonth) Color.Transparent else Color.Black.copy(alpha = 0.22f))
-                            .clickable { selectDay(day) }
+                            .clickable(enabled = enabled) { selectDay(day) }
                             .padding(5.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -1894,7 +1898,7 @@ private fun MonthCalendarGrid(
                                 event.optString("title").ifBlank { "Untitled" },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onEdit(event) }
+                                    .clickable(enabled = enabled) { onEdit(event) }
                                     .background(Color(0xFF8E1B2C))
                                     .padding(horizontal = 4.dp, vertical = 2.dp),
                                 color = Color(0xFFFFC2CD),
