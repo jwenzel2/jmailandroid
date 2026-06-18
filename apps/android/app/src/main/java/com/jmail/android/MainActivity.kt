@@ -1475,6 +1475,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val activeQuery = query.trim()
+    val contactsBusy = loading || deleting
     LaunchedEffect(activeQuery) {
         selectedIds = emptySet()
         selecting = false
@@ -1520,7 +1521,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selecting = !selecting
                         selectedIds = emptySet()
                         confirmingDelete = false
-                    }, enabled = !deleting) { Text(if (selecting) "Cancel" else "Select") }
+                    }, enabled = !contactsBusy) { Text(if (selecting) "Cancel" else "Select") }
                 }
             }
             item {
@@ -1530,17 +1531,17 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         { query = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        enabled = !deleting,
+                        enabled = !contactsBusy,
                         label = { Text("Search contacts") },
                     )
                     if (query.isNotBlank()) {
-                        Button(onClick = { query = "" }, enabled = !deleting) { Text("Clear") }
+                        Button(onClick = { query = "" }, enabled = !contactsBusy) { Text("Clear") }
                     }
                 }
             }
             if (selecting && selectedIds.isNotEmpty()) {
                 item {
-                    Button(onClick = { confirmingDelete = true }, enabled = !deleting) {
+                    Button(onClick = { confirmingDelete = true }, enabled = !contactsBusy) {
                         Text("Delete selected (${selectedIds.size})")
                     }
                 }
@@ -1593,7 +1594,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val id = contact.optString("id")
                 Card(
                     onClick = {
-                        if (!deleting) {
+                        if (!contactsBusy) {
                             if (selecting) {
                                 selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
                                 confirmingDelete = false
@@ -1615,7 +1616,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             }
         }
         FloatingActionButton(
-            onClick = { if (!deleting) adding = true },
+            onClick = { if (!contactsBusy) adding = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
             Icon(Icons.Default.Add, "Add contact")
