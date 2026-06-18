@@ -145,6 +145,12 @@ private enum class Destination(val label: String, val icon: ImageVector) {
     Settings("Settings", Icons.Default.Settings),
 }
 
+private enum class MailFilter(val label: String) {
+    All("All"),
+    Unread("Unread"),
+    Starred("Starred"),
+}
+
 private val LightBlueScheme = lightColorScheme(
     primary = Color(0xFF0D47A1),
     onPrimary = Color.White,
@@ -295,6 +301,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var currentPage by remember { mutableStateOf(1) }
     var hasMoreMessages by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var mailFilter by remember { mutableStateOf(MailFilter.All) }
     var selectingMessages by remember { mutableStateOf(false) }
     var movingSelected by remember { mutableStateOf(false) }
     var selectedMessageUids by remember { mutableStateOf(setOf<Int>()) }
@@ -302,6 +309,13 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     var selected by remember { mutableStateOf<JSONObject?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val activeSearch = searchQuery.trim()
+    val visibleMessages = messages.filter { message ->
+        when (mailFilter) {
+            MailFilter.All -> true
+            MailFilter.Unread -> !message.optBoolean("seen")
+            MailFilter.Starred -> message.optBoolean("flagged")
+        }
+    }
     LaunchedEffect(Unit, folder, refreshNonce, activeSearch) {
         loading = true
         error = null
@@ -446,10 +460,34 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     }
                 }
             }
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MailFilter.entries.forEach { filter ->
+                        Button(
+                            onClick = {
+                                mailFilter = filter
+                                selectedMessageUids = emptySet()
+                                movingSelected = false
+                            },
+                            enabled = mailFilter != filter,
+                        ) {
+                            Text(filter.label)
+                        }
+                    }
+                }
+            }
             if (loading) item { Text("Loading mail...") }
             error?.let { item { Text(it, color = MaterialTheme.colorScheme.error) } }
-            if (!loading && messages.isEmpty()) {
-                item { Text(if (activeSearch.isBlank()) "No messages" else "No messages match \"$activeSearch\"") }
+            if (!loading && visibleMessages.isEmpty()) {
+                item {
+                    Text(
+                        when {
+                            messages.isEmpty() && activeSearch.isBlank() -> "No messages"
+                            messages.isEmpty() -> "No messages match \"$activeSearch\""
+                            else -> "No ${mailFilter.label.lowercase()} messages"
+                        },
+                    )
+                }
             }
             if (selectingMessages && selectedMessageUids.isNotEmpty()) {
                 item {
@@ -487,7 +525,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     }
                 }
             }
-            items(messages) { message ->
+            items(visibleMessages) { message ->
                 val seen = message.optBoolean("seen")
                 val flagged = message.optBoolean("flagged")
                 val hasAttachments = message.optBoolean("hasAttachments")
