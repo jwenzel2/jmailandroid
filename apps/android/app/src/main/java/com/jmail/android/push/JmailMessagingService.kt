@@ -13,6 +13,7 @@ import com.jmail.android.data.JmailApi
 import com.jmail.android.data.SessionStore
 
 class JmailMessagingService : FirebaseMessagingService() {
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onNewToken(token: String) {
         val session = SessionStore(this)
         if (session.serverUrl == null || !session.isSignedIn || !session.notificationsEnabled) return

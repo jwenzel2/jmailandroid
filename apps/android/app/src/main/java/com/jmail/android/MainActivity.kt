@@ -28,13 +28,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -127,6 +127,7 @@ class MainActivity : ComponentActivity() {
         registerPushDevice()
     }
 
+    @Suppress("DEPRECATION")
     private fun registerPushDevice() {
         runCatching {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
@@ -683,7 +684,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             onClick = { compose(ComposeDraft()) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
-            Icon(Icons.Default.Send, "Compose")
+            Icon(Icons.AutoMirrored.Filled.Send, "Compose")
         }
     }
 }
@@ -1071,7 +1072,7 @@ private fun MessageDetailScreen(
             TopAppBar(
                 title = { Text(detail?.optString("subject") ?: summary.optString("subject", "Message")) },
                 navigationIcon = {
-                    IconButton(back) { Icon(Icons.Default.ArrowBack, "Back") }
+                    IconButton(back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
                 },
             )
         },
