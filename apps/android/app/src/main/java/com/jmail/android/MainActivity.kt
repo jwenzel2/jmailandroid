@@ -1089,6 +1089,7 @@ private fun MessageDetailScreen(
     var detail by remember { mutableStateOf<JSONObject?>(null) }
     var moving by remember { mutableStateOf(false) }
     var confirmingAction by remember { mutableStateOf<String?>(null) }
+    var acting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var attachmentStatus by remember { mutableStateOf<String?>(null) }
     var downloadingPartId by remember { mutableStateOf<String?>(null) }
@@ -1096,10 +1097,53 @@ private fun MessageDetailScreen(
     val uid = summary.optInt("uid")
 
     fun runDestructiveMessageAction(action: String) {
+        acting = true
+        error = null
         Thread {
             runCatching { api.action(folder, uid, action) }
                 .onSuccess { runOnMain(afterAction) }
-                .onFailure { runOnMain { error = it.message } }
+                .onFailure {
+                    runOnMain {
+                        acting = false
+                        error = it.message
+                    }
+                }
+        }.start()
+    }
+
+    fun runDetailPatchAction(action: String, patch: JSONObject.() -> Unit, message: JSONObject) {
+        acting = true
+        error = null
+        Thread {
+            runCatching { api.action(folder, uid, action) }
+                .onSuccess {
+                    runOnMain {
+                        detail = JSONObject(message.toString()).apply(patch)
+                        afterPatch(patch)
+                        acting = false
+                    }
+                }
+                .onFailure {
+                    runOnMain {
+                        acting = false
+                        error = it.message
+                    }
+                }
+        }.start()
+    }
+
+    fun runDetailMoveAction(targetPath: String) {
+        acting = true
+        error = null
+        Thread {
+            runCatching { api.action(folder, uid, "move", targetPath) }
+                .onSuccess { runOnMain(afterAction) }
+                .onFailure {
+                    runOnMain {
+                        acting = false
+                        error = it.message
+                    }
+                }
         }.start()
     }
 
@@ -1133,37 +1177,31 @@ private fun MessageDetailScreen(
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val seen = message.optBoolean("seen")
                         val flagged = message.optBoolean("flagged")
-                        Button(onClick = { compose(replyDraft(message, folder, uid)) }) { Text("Reply") }
-                        Button(onClick = { compose(forwardDraft(message)) }) { Text("Forward") }
-                        Button(onClick = {
-                            Thread {
-                                runCatching { api.action(folder, uid, if (seen) "markUnseen" else "markSeen") }
-                                    .onSuccess {
-                                        runOnMain {
-                                            val patch: JSONObject.() -> Unit = { put("seen", !seen) }
-                                            detail = JSONObject(message.toString()).apply(patch)
-                                            afterPatch(patch)
-                                        }
-                                    }
-                                    .onFailure { runOnMain { error = it.message } }
-                            }.start()
-                        }) { Text(if (seen) "Unread" else "Read") }
-                        Button(onClick = {
-                            Thread {
-                                runCatching { api.action(folder, uid, if (flagged) "unflag" else "flag") }
-                                    .onSuccess {
-                                        runOnMain {
-                                            val patch: JSONObject.() -> Unit = { put("flagged", !flagged) }
-                                            detail = JSONObject(message.toString()).apply(patch)
-                                            afterPatch(patch)
-                                        }
-                                    }
-                                    .onFailure { runOnMain { error = it.message } }
-                            }.start()
-                        }) { Text(if (flagged) "Unstar" else "Star") }
-                        Button(onClick = { moving = !moving }) { Text(if (moving) "Cancel move" else "Move") }
-                        Button(onClick = { confirmingAction = "markSpam" }) { Text("Spam") }
-                        Button(onClick = { confirmingAction = "delete" }) { Text("Delete") }
+                        Button(onClick = { compose(replyDraft(message, folder, uid)) }, enabled = !acting) { Text("Reply") }
+                        Button(onClick = { compose(forwardDraft(message)) }, enabled = !acting) { Text("Forward") }
+                        Button(
+                            enabled = !acting,
+                            onClick = {
+                                runDetailPatchAction(
+                                    if (seen) "markUnseen" else "markSeen",
+                                    { put("seen", !seen) },
+                                    message,
+                                )
+                            },
+                        ) { Text(if (seen) "Unread" else "Read") }
+                        Button(
+                            enabled = !acting,
+                            onClick = {
+                                runDetailPatchAction(
+                                    if (flagged) "unflag" else "flag",
+                                    { put("flagged", !flagged) },
+                                    message,
+                                )
+                            },
+                        ) { Text(if (flagged) "Unstar" else "Star") }
+                        Button(onClick = { moving = !moving }, enabled = !acting) { Text(if (moving) "Cancel move" else "Move") }
+                        Button(onClick = { confirmingAction = "markSpam" }, enabled = !acting) { Text("Spam") }
+                        Button(onClick = { confirmingAction = "delete" }, enabled = !acting) { Text("Delete") }
                     }
                 }
                 confirmingAction?.let { action ->
@@ -1182,9 +1220,12 @@ private fun MessageDetailScreen(
                                     },
                                 )
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { confirmingAction = null }) { Text("Cancel") }
-                                    Button(onClick = { runDestructiveMessageAction(if (action == "delete") "delete" else "markSpam") }) {
-                                        Text(if (action == "delete") "Delete" else "Mark spam")
+                                    Button(onClick = { confirmingAction = null }, enabled = !acting) { Text("Cancel") }
+                                    Button(
+                                        enabled = !acting,
+                                        onClick = { runDestructiveMessageAction(if (action == "delete") "delete" else "markSpam") },
+                                    ) {
+                                        Text(if (acting) "Working..." else if (action == "delete") "Delete" else "Mark spam")
                                     }
                                 }
                             }
@@ -1197,12 +1238,9 @@ private fun MessageDetailScreen(
                         val targetPath = target.optString("path")
                         Button(
                             onClick = {
-                                Thread {
-                                    runCatching { api.action(folder, uid, "move", targetPath) }
-                                        .onSuccess { runOnMain(afterAction) }
-                                        .onFailure { runOnMain { error = it.message } }
-                                }.start()
+                                runDetailMoveAction(targetPath)
                             },
+                            enabled = !acting,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Text(target.optString("name").ifBlank { targetPath })
