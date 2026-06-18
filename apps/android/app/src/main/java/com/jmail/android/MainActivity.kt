@@ -1378,8 +1378,8 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (selecting) Text(if (selectedIds.contains(id)) "✓" else "○")
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(contact.optString("displayName"), style = MaterialTheme.typography.titleMedium)
-                            Text(contact.optString("email"))
+                            Text(contact.contactTitle(), style = MaterialTheme.typography.titleMedium)
+                            contact.cleanString("email")?.let { Text(it) }
                         }
                     }
                 }
@@ -1401,7 +1401,7 @@ private fun ContactDetail(contact: JSONObject, back: () -> Unit, edit: () -> Uni
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(contact.optString("displayName"), style = MaterialTheme.typography.headlineSmall)
+                    Text(contact.contactTitle(), style = MaterialTheme.typography.headlineSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         contact.cleanString("email")?.let { address ->
                             Button(onClick = { email(address) }) { Text("Email") }
@@ -1426,6 +1426,7 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
     var company by remember { mutableStateOf(contact?.cleanString("company").orEmpty()) }
     var notes by remember { mutableStateOf(contact?.cleanString("notes").orEmpty()) }
     var status by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (contact == null) "New contact" else "Edit contact", style = MaterialTheme.typography.headlineSmall)
         OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Name") })
@@ -1434,16 +1435,35 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
         OutlinedTextField(company, { company = it }, Modifier.fillMaxWidth(), label = { Text("Company") })
         OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), minLines = 3, label = { Text("Notes") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = close) { Text("Cancel") }
-            Button(onClick = {
+            Button(onClick = close, enabled = !saving) { Text("Cancel") }
+            Button(enabled = !saving, onClick = {
+                val nameText = name.trim()
+                val emailText = email.trim()
+                val phoneText = phone.trim()
+                val companyText = company.trim()
+                val notesText = notes.trim()
+                if (nameText.isBlank() && emailText.isBlank()) {
+                    status = "Enter a name or email address."
+                    return@Button
+                }
+                if (emailText.isNotBlank() && !emailText.contains("@")) {
+                    status = "Enter a valid email address."
+                    return@Button
+                }
+                saving = true
                 status = "Saving..."
                 Thread {
                     runCatching {
-                        if (contact == null) api.createContact(name, email, phone, company, notes)
-                        else api.updateContact(contact.optString("id"), name, email, phone, company, notes)
+                        if (contact == null) api.createContact(nameText, emailText, phoneText, companyText, notesText)
+                        else api.updateContact(contact.optString("id"), nameText, emailText, phoneText, companyText, notesText)
                     }
                         .onSuccess { runOnMain { done(it) } }
-                        .onFailure { runOnMain { status = it.message } }
+                        .onFailure {
+                            runOnMain {
+                                saving = false
+                                status = it.message
+                            }
+                        }
                 }.start()
             }) { Text("Save") }
         }
@@ -1864,6 +1884,8 @@ private fun JSONObject.cleanString(key: String): String? {
 }
 
 private fun JSONObject.accountLabel(): String = cleanString("displayName") ?: cleanString("email") ?: "Mail account"
+
+private fun JSONObject.contactTitle(): String = cleanString("displayName") ?: cleanString("email") ?: "Untitled contact"
 
 private fun hostWithPort(host: String, port: Int): String = if (port > 0) "$host:$port" else host
 
