@@ -106,6 +106,8 @@ Keep the existing web app/static proxy behavior for all other paths.
 Run these against production after deploy:
 
 ```bash
+scripts/mobile-api-smoke.sh https://mail.jwenzel.net
+
 curl -sk https://mail.jwenzel.net/api/v1/compatibility
 
 curl -skI 'https://mail.jwenzel.net/api/v1/mobile/login?redirect_uri=jmail%3A%2F%2Fauth' \
@@ -132,6 +134,8 @@ Expected compatibility response includes:
 After Android login, verify the returned mobile token can call:
 
 ```bash
+scripts/mobile-api-smoke.sh https://mail.jwenzel.net "$TOKEN"
+
 curl -sk -H "Authorization: Bearer $TOKEN" https://mail.jwenzel.net/api/v1/me
 curl -sk -H "Authorization: Bearer $TOKEN" https://mail.jwenzel.net/api/v1/accounts
 curl -sk -X POST -H "Authorization: Bearer $TOKEN" https://mail.jwenzel.net/api/v1/mobile/token
