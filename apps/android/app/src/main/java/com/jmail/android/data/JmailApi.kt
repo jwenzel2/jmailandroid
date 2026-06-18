@@ -214,7 +214,7 @@ class JmailApi(private val session: SessionStore) {
         val bytes = stream.use { it.readBytes() }
         if (connection.responseCode !in 200..299) {
             if (connection.responseCode == 401) expireSession()
-            error("HTTP ${connection.responseCode}: ${bytes.toString(Charsets.UTF_8)}")
+            error(apiError(connection.responseCode, bytes.toString(Charsets.UTF_8)))
         }
         return bytes
     }
@@ -242,7 +242,7 @@ class JmailApi(private val session: SessionStore) {
             if (connection.responseCode == 404 && connection.url.toString().endsWith("/api/v1/compatibility")) {
                 error("This server does not expose the jmail mobile API yet. Deploy the updated jmail-api and proxy /api/v1/* to it.")
             }
-            error("HTTP ${connection.responseCode}: $text")
+            error(apiError(connection.responseCode, text))
         }
         return text
     }
@@ -254,7 +254,10 @@ class JmailApi(private val session: SessionStore) {
 
     private fun openConnection(path: String): HttpURLConnection {
         val url = if (path.startsWith("http")) path else "$serverUrl$path"
-        return URI.create(url).toURL().openConnection() as HttpURLConnection
+        return (URI.create(url).toURL().openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 30_000
+        }
     }
 
     private fun expireSession(): Nothing {
@@ -262,5 +265,17 @@ class JmailApi(private val session: SessionStore) {
         session.clearAccessToken()
         onSessionExpired?.invoke(message)
         error(message)
+    }
+
+    private fun apiError(statusCode: Int, text: String): String {
+        val trimmed = text.trim()
+        val serverMessage = runCatching {
+            JSONObject(trimmed).let { body ->
+                body.optString("message")
+                    .ifBlank { body.optString("error") }
+                    .ifBlank { body.optString("code") }
+            }
+        }.getOrNull()
+        return "HTTP $statusCode: ${serverMessage?.takeIf { it.isNotBlank() } ?: trimmed.ifBlank { "Request failed" }}"
     }
 }
