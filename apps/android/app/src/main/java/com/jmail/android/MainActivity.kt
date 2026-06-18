@@ -1937,23 +1937,24 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
     var endTime by remember(eventId) { mutableStateOf(initialEndLocal.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm"))) }
     var location by remember(eventId) { mutableStateOf(event?.cleanString("location").orEmpty()) }
     var status by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (eventId == null) "New event" else "Edit event", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), label = { Text("Title") })
+        OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Title") })
         Text("Start", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(startDate, { startDate = it }, Modifier.weight(1f), singleLine = true, label = { Text("Date") })
-            OutlinedTextField(startTime, { startTime = it }, Modifier.weight(1f), singleLine = true, label = { Text("Time") })
+            OutlinedTextField(startDate, { startDate = it }, Modifier.weight(1f), singleLine = true, enabled = !saving, label = { Text("Date") })
+            OutlinedTextField(startTime, { startTime = it }, Modifier.weight(1f), singleLine = true, enabled = !saving, label = { Text("Time") })
         }
         Text("End", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(endDate, { endDate = it }, Modifier.weight(1f), singleLine = true, label = { Text("Date") })
-            OutlinedTextField(endTime, { endTime = it }, Modifier.weight(1f), singleLine = true, label = { Text("Time") })
+            OutlinedTextField(endDate, { endDate = it }, Modifier.weight(1f), singleLine = true, enabled = !saving, label = { Text("Date") })
+            OutlinedTextField(endTime, { endTime = it }, Modifier.weight(1f), singleLine = true, enabled = !saving, label = { Text("Time") })
         }
-        OutlinedTextField(location, { location = it }, Modifier.fillMaxWidth(), label = { Text("Location") })
+        OutlinedTextField(location, { location = it }, Modifier.fillMaxWidth(), enabled = !saving, label = { Text("Location") })
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = close) { Text("Cancel") }
-            Button(onClick = {
+            Button(onClick = close, enabled = !saving) { Text("Cancel") }
+            Button(enabled = !saving, onClick = {
                 val titleText = title.trim()
                 if (titleText.isBlank()) {
                     status = "Enter an event title."
@@ -1973,6 +1974,7 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
                     status = "End time must be after start time."
                     return@Button
                 }
+                saving = true
                 status = "Saving..."
                 Thread {
                     runCatching {
@@ -1980,9 +1982,14 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
                         else api.updateEvent(eventId, titleText, startsAt, endsAt, location.trim())
                     }
                         .onSuccess { runOnMain { done(it) } }
-                        .onFailure { runOnMain { status = it.message } }
+                        .onFailure {
+                            runOnMain {
+                                saving = false
+                                status = it.message
+                            }
+                        }
                 }.start()
-            }) { Text("Save") }
+            }) { Text(if (saving) "Saving..." else "Save") }
         }
         Text("Use date format YYYY-MM-DD and 24-hour time HH:mm.", style = MaterialTheme.typography.bodySmall)
         status?.let { Text(it, color = if (it == "Saving...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
