@@ -366,6 +366,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             MailFilter.Starred -> message.optBoolean("flagged")
         }
     }
+    val mailBusy = loading || loadingMore || bulkActionInFlight || messageActionUids.isNotEmpty()
     LaunchedEffect(Unit, folder, refreshNonce, activeSearch) {
         loading = true
         error = null
@@ -557,8 +558,8 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         selectedMessageUids = emptySet()
                         movingSelected = false
                         confirmingBulkDelete = false
-                    }, enabled = !bulkActionInFlight) { Text(if (selectingMessages) "Cancel" else "Select") }
-                    Button(onClick = { refreshNonce++ }) { Text("Refresh") }
+                    }, enabled = !mailBusy) { Text(if (selectingMessages) "Cancel" else "Select") }
+                    Button(onClick = { refreshNonce++ }, enabled = !mailBusy) { Text("Refresh") }
                 }
             }
             item {
@@ -568,10 +569,11 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                         { searchQuery = it },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
+                        enabled = !mailBusy,
                         label = { Text("Search this folder") },
                     )
                     if (searchQuery.isNotBlank()) {
-                        Button(onClick = { searchQuery = "" }) { Text("Clear") }
+                        Button(onClick = { searchQuery = "" }, enabled = !mailBusy) { Text("Clear") }
                     }
                 }
             }
@@ -585,7 +587,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                                 movingSelected = false
                                 confirmingBulkDelete = false
                             },
-                            enabled = mailFilter != filter,
+                            enabled = !mailBusy && mailFilter != filter,
                         ) {
                             Text(filter.label)
                         }
@@ -760,6 +762,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 accounts = accounts,
                 folders = folders,
                 selectedFolder = folder,
+                enabled = !mailBusy,
                 onClose = { drawerOpen = false },
                 onAccountSelected = {
                     selectedAccount = it.accountLabel()
@@ -784,7 +787,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             )
         }
         FloatingActionButton(
-            onClick = { compose(ComposeDraft()) },
+            onClick = { if (!mailBusy) compose(ComposeDraft()) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 40.dp),
         ) {
             Icon(Icons.AutoMirrored.Filled.Send, "Compose")
@@ -797,6 +800,7 @@ private fun MailDrawer(
     accounts: List<JSONObject>,
     folders: List<JSONObject>,
     selectedFolder: String,
+    enabled: Boolean,
     onClose: () -> Unit,
     onAccountSelected: (JSONObject) -> Unit,
     onAddAccount: () -> Unit,
@@ -813,7 +817,7 @@ private fun MailDrawer(
                 }
                 item { Text("Accounts", style = MaterialTheme.typography.titleLarge) }
                 item {
-                    Button(onClick = onAddAccount, modifier = Modifier.fillMaxWidth()) {
+                    Button(onClick = onAddAccount, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
                         Text("Add mail account")
                     }
                 }
@@ -823,6 +827,7 @@ private fun MailDrawer(
                     items(accounts) { account ->
                         Button(
                             onClick = { onAccountSelected(account) },
+                            enabled = enabled,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column {
@@ -840,6 +845,7 @@ private fun MailDrawer(
                     val path = entry.optString("path")
                     Button(
                         onClick = { onFolderSelected(path) },
+                        enabled = enabled && path != selectedFolder,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
