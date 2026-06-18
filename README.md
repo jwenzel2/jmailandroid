@@ -9,8 +9,8 @@ login, mail, contacts, calendar, and push device registration.
 
 - Keycloak/OIDC login through the jmail mobile callback flow.
 - Persistent signed-in session backed by local Android preferences.
-- Mail account add flow, folders, account/folder drawer, message list, message detail, search,
-  pagination, quick filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
+- Mail account add/edit/remove flow, folders, account/folder drawer, message list, message detail,
+  search, pagination, quick filters, read/unread, star/unstar, spam, delete, move, and bulk actions.
 - Compose, reply, and forward flows with basic client-side validation.
 - Attachment download/share through Android `FileProvider`.
 - Contacts list, search, detail view, create/edit, and multi-select delete.

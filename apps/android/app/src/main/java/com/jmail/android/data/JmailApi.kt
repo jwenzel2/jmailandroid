@@ -151,6 +151,7 @@ class JmailApi(private val session: SessionStore) {
     fun deleteEvent(id: String): JSONObject = request("/api/calendar/events/$id", "DELETE")
 
     fun addAccount(body: JSONObject): JSONObject = request("/api/v1/accounts", "POST", body)
+    fun updateAccount(id: String, body: JSONObject): JSONObject = request("/api/v1/accounts/${encode(id)}", "PATCH", body)
     fun deleteAccount(id: String): JSONObject = request("/api/v1/accounts/${encode(id)}", "DELETE")
 
     fun registerDevice(installationId: String, token: String) {

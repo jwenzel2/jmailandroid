@@ -294,6 +294,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
     val folders = remember { mutableStateListOf<JSONObject>() }
     val messages = remember { mutableStateListOf<JSONObject>() }
     var addingAccount by remember { mutableStateOf(false) }
+    var editingAccount by remember { mutableStateOf<JSONObject?>(null) }
     var viewingAccount by remember { mutableStateOf<JSONObject?>(null) }
     var folder by remember { mutableStateOf("INBOX") }
     var drawerOpen by remember { mutableStateOf(false) }
@@ -409,8 +410,23 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             close = { addingAccount = false },
             done = { account ->
                 accounts.add(account)
-                selectedAccount = account.optString("displayName").ifBlank { account.optString("email") }
+                selectedAccount = account.accountLabel()
                 addingAccount = false
+            },
+        )
+        return
+    }
+    editingAccount?.let { account ->
+        AccountEditorScreen(
+            api = api,
+            account = account,
+            close = { editingAccount = null },
+            done = { updated ->
+                val index = accounts.indexOfFirst { it.optString("id") == updated.optString("id") }
+                if (index >= 0) accounts[index] = updated
+                selectedAccount = updated.accountLabel()
+                viewingAccount = updated
+                editingAccount = null
             },
         )
         return
@@ -420,6 +436,10 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             api = api,
             account = account,
             back = { viewingAccount = null },
+            edit = {
+                editingAccount = account
+                viewingAccount = null
+            },
             deleted = {
                 accounts.removeAll { it.optString("id") == account.optString("id") }
                 if (selectedAccount == account.accountLabel()) selectedAccount = null
@@ -725,7 +745,13 @@ private fun MailDrawer(
 }
 
 @Composable
-private fun AccountDetailScreen(api: JmailApi, account: JSONObject, back: () -> Unit, deleted: () -> Unit) {
+private fun AccountDetailScreen(
+    api: JmailApi,
+    account: JSONObject,
+    back: () -> Unit,
+    edit: () -> Unit,
+    deleted: () -> Unit,
+) {
     var confirmingDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -736,8 +762,11 @@ private fun AccountDetailScreen(api: JmailApi, account: JSONObject, back: () -> 
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Button(back, enabled = !deleting) { Text("Back") }
-                if (!confirmingDelete) {
-                    Button(onClick = { confirmingDelete = true }, enabled = !deleting) { Text("Remove") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!confirmingDelete) {
+                        Button(onClick = edit, enabled = !deleting) { Text("Edit") }
+                        Button(onClick = { confirmingDelete = true }, enabled = !deleting) { Text("Remove") }
+                    }
                 }
             }
         }
@@ -823,21 +852,29 @@ private fun AccountInfoRow(label: String, value: String) {
 }
 
 @Composable
-private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObject) -> Unit) {
-    var email by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
-    var protocol by remember { mutableStateOf("imap") }
-    var authType by remember { mutableStateOf("keycloak") }
-    var incomingHost by remember { mutableStateOf("mail.jwenzel.net") }
-    var incomingPort by remember { mutableStateOf("993") }
-    var smtpHost by remember { mutableStateOf("mail.jwenzel.net") }
-    var smtpPort by remember { mutableStateOf("587") }
-    var username by remember { mutableStateOf("") }
+private fun AccountEditorScreen(
+    api: JmailApi,
+    account: JSONObject? = null,
+    close: () -> Unit,
+    done: (JSONObject) -> Unit,
+) {
+    val accountId = account?.cleanString("id")
+    val accountSettings = account?.optJSONObject("settings")
+    var email by remember(accountId) { mutableStateOf(account?.cleanString("email").orEmpty()) }
+    var displayName by remember(accountId) { mutableStateOf(account?.cleanString("displayName").orEmpty()) }
+    var protocol by remember(accountId) { mutableStateOf(account?.cleanString("protocol") ?: "imap") }
+    var authType by remember(accountId) { mutableStateOf(account?.cleanString("authType") ?: "keycloak") }
+    var incomingHost by remember(accountId) { mutableStateOf(account?.cleanString("imapHost") ?: "mail.jwenzel.net") }
+    var incomingPort by remember(accountId) { mutableStateOf(account?.optInt("imapPort")?.takeIf { it > 0 }?.toString() ?: "993") }
+    var smtpHost by remember(accountId) { mutableStateOf(account?.cleanString("smtpHost") ?: "mail.jwenzel.net") }
+    var smtpPort by remember(accountId) { mutableStateOf(account?.optInt("smtpPort")?.takeIf { it > 0 }?.toString() ?: "587") }
+    var username by remember(accountId) { mutableStateOf(account?.cleanString("username").orEmpty()) }
     var secret by remember { mutableStateOf("") }
-    var notifications by remember { mutableStateOf(true) }
-    var leaveOnServer by remember { mutableStateOf(true) }
+    var notifications by remember(accountId) { mutableStateOf(accountSettings?.optBoolean("notifications", true) ?: true) }
+    var leaveOnServer by remember(accountId) { mutableStateOf(accountSettings?.optBoolean("leaveOnServer", true) ?: true) }
     var status by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    val editing = accountId != null
 
     fun selectProtocol(next: String) {
         protocol = next
@@ -880,7 +917,7 @@ private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObj
                                 status = "Enter a username."
                                 return@Button
                             }
-                            authType == "password" && secret.isBlank() -> {
+                            !editing && authType == "password" && secret.isBlank() -> {
                                 status = "Enter the account password or app password."
                                 return@Button
                             }
@@ -908,11 +945,13 @@ private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObj
                                     .put("trashFolder", JSONObject.NULL)
                                     .put("junkFolder", JSONObject.NULL),
                             )
-                        if (authType == "password") body.put("secret", secret)
+                        if (authType == "password" && secret.isNotBlank()) body.put("secret", secret)
                         saving = true
-                        status = "Adding account..."
+                        status = if (editing) "Saving account..." else "Adding account..."
                         Thread {
-                            runCatching { api.addAccount(body) }
+                            runCatching {
+                                if (editing) api.updateAccount(accountId, body) else api.addAccount(body)
+                            }
                                 .onSuccess { runOnMain { done(it) } }
                                 .onFailure {
                                     runOnMain {
@@ -925,7 +964,7 @@ private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObj
                 ) { Text("Save") }
             }
         }
-        item { Text("Add mail account", style = MaterialTheme.typography.headlineSmall) }
+        item { Text(if (editing) "Edit mail account" else "Add mail account", style = MaterialTheme.typography.headlineSmall) }
         item { OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Email address") }) }
         item { OutlinedTextField(displayName, { displayName = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Display name") }) }
         item {
@@ -954,7 +993,16 @@ private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObj
         item { OutlinedTextField(smtpPort, { smtpPort = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("SMTP port") }) }
         item { OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Username") }, placeholder = { Text("Defaults to email address") }) }
         if (authType == "password") {
-            item { OutlinedTextField(secret, { secret = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Password or app password") }) }
+            item {
+                OutlinedTextField(
+                    secret,
+                    { secret = it },
+                    Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Password or app password") },
+                    placeholder = { if (editing) Text("Leave blank to keep current secret") },
+                )
+            }
         } else {
             item { Text("Keycloak auth uses your signed-in jmail identity. No account password is stored on this device.") }
         }
@@ -974,7 +1022,11 @@ private fun AccountEditorScreen(api: JmailApi, close: () -> Unit, done: (JSONObj
             item {
                 Text(
                     it,
-                    color = if (it == "Adding account...") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    color = if (it == "Adding account..." || it == "Saving account...") {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.error
+                    },
                 )
             }
         }
