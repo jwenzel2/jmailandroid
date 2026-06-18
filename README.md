@@ -83,5 +83,5 @@ Firebase configuration:
 
 - Deploy the mobile token renewal API and verify long-lived login against production.
 - Verify server-side account provisioning against the production mobile API.
-- Add release signing, versioning, app icon, and privacy/release notes.
+- Add release signing, store-ready privacy notes, and final release notes.
 - Perform a full real-device QA pass against `mail.jwenzel.net`.
