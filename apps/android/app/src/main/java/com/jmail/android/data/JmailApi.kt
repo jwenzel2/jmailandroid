@@ -53,9 +53,8 @@ class JmailApi(private val session: SessionStore) {
     fun renewMobileToken(): JSONObject =
         request("/api/v1/mobile/token", "POST").also {
             val token = it.optString("accessToken")
-            if (token.isNotBlank()) {
-                session.saveAccessToken(token, it.optString("expiresAt").takeIf { value -> value.isNotBlank() })
-            }
+            if (token.isBlank()) expireSession()
+            session.saveAccessToken(token, it.optString("expiresAt").takeIf { value -> value.isNotBlank() })
         }
 
     fun me(): JSONObject = request("/api/v1/me")
