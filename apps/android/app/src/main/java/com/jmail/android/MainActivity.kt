@@ -288,7 +288,12 @@ private fun Onboarding(session: SessionStore, api: JmailApi, error: String?, log
                 }
                     .onSuccess {
                         session.serverUrl = it
-                        runOnMain(login)
+                        runOnMain {
+                            runCatching(login).onFailure { failure ->
+                                connecting = false
+                                status = failure.message ?: "Unable to open browser for sign-in."
+                            }
+                        }
                     }.onFailure {
                         runOnMain {
                             connecting = false
