@@ -82,7 +82,7 @@ class SessionStore(context: Context) {
                 }
 
     fun clear() {
-        prefs.edit().clear().apply()
+        clearAccessToken()
     }
 
     private fun key(): SecretKey {
