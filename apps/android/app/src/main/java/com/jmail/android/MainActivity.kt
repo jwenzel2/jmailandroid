@@ -905,6 +905,7 @@ private fun AccountDetailScreen(
     var confirmingDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
+    val accountId = account.cleanString("id")
     val settings = account.optJSONObject("settings")
     val capabilities = account.optJSONObject("capabilities")
 
@@ -963,10 +964,16 @@ private fun AccountDetailScreen(
                             Button(
                                 enabled = !deleting,
                                 onClick = {
+                                    val id = accountId
+                                    if (id == null) {
+                                        status = "Account is missing its ID."
+                                        confirmingDelete = false
+                                        return@Button
+                                    }
                                     deleting = true
                                     status = "Removing account..."
                                     Thread {
-                                        runCatching { api.deleteAccount(account.optString("id")) }
+                                        runCatching { api.deleteAccount(id) }
                                             .onSuccess { runOnMain { deleted() } }
                                             .onFailure {
                                                 runOnMain {
@@ -1631,12 +1638,15 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 item { Text(if (activeQuery.isBlank()) "No contacts" else "No contacts match \"$activeQuery\"") }
             }
             items(rows) { contact ->
-                val id = contact.optString("id")
+                val id = contact.cleanString("id")
+                val selected = id != null && selectedIds.contains(id)
+                val rowEnabled = !contactsBusy && (!selecting || id != null)
                 Card(
                     onClick = {
-                        if (!contactsBusy) {
+                        if (rowEnabled) {
                             if (selecting) {
-                                selectedIds = if (selectedIds.contains(id)) selectedIds - id else selectedIds + id
+                                val contactId = id ?: return@Card
+                                selectedIds = if (selected) selectedIds - contactId else selectedIds + contactId
                                 confirmingDelete = false
                             } else {
                                 selectedContact = contact
@@ -1646,7 +1656,7 @@ private fun ContactsScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (selecting) Text(if (selectedIds.contains(id)) "✓" else "○")
+                        if (selecting) Text(if (selected) "✓" else "○")
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(contact.contactTitle(), style = MaterialTheme.typography.titleMedium)
                             contact.cleanString("email")?.let { Text(it) }
@@ -1965,7 +1975,7 @@ private fun CalendarEventCard(
 ) {
     var confirmingDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
-    val eventId = event.optString("id")
+    val eventId = event.cleanString("id")
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(event.optString("title"), style = MaterialTheme.typography.titleMedium)
@@ -1973,7 +1983,7 @@ private fun CalendarEventCard(
             event.optString("location").takeIf { it.isNotBlank() }?.let { Text(it) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onEdit(event) }, enabled = !deleting) { Text("Edit") }
-                Button(onClick = { confirmingDelete = true }, enabled = !deleting) { Text("Delete") }
+                Button(onClick = { confirmingDelete = true }, enabled = !deleting && eventId != null) { Text("Delete") }
             }
             if (confirmingDelete) {
                 Card(Modifier.fillMaxWidth()) {
@@ -1985,14 +1995,15 @@ private fun CalendarEventCard(
                             Button(
                                 enabled = !deleting,
                                 onClick = {
+                                    val id = eventId ?: return@Button
                                     deleting = true
                                     onError(null)
                                     Thread {
-                                        runCatching { api.deleteEvent(eventId) }
+                                        runCatching { api.deleteEvent(id) }
                                             .onSuccess {
                                                 runOnMain {
                                                     deleting = false
-                                                    rows.removeAll { it.optString("id") == eventId }
+                                                    rows.removeAll { it.cleanString("id") == id }
                                                 }
                                             }
                                             .onFailure {
