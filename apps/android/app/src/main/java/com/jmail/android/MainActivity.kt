@@ -1441,13 +1441,13 @@ private data class ComposeDraft(
 
 @Composable
 private fun ComposeScreen(api: JmailApi, draft: ComposeDraft, close: () -> Unit) {
-    var to by remember { mutableStateOf(draft.to) }
-    var cc by remember { mutableStateOf(draft.cc) }
-    var bcc by remember { mutableStateOf(draft.bcc) }
-    var subject by remember { mutableStateOf(draft.subject) }
-    var body by remember { mutableStateOf(draft.body) }
-    var status by remember { mutableStateOf<String?>(null) }
-    var sending by remember { mutableStateOf(false) }
+    var to by remember(draft) { mutableStateOf(draft.to) }
+    var cc by remember(draft) { mutableStateOf(draft.cc) }
+    var bcc by remember(draft) { mutableStateOf(draft.bcc) }
+    var subject by remember(draft) { mutableStateOf(draft.subject) }
+    var body by remember(draft) { mutableStateOf(draft.body) }
+    var status by remember(draft) { mutableStateOf<String?>(null) }
+    var sending by remember(draft) { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
