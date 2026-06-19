@@ -58,16 +58,16 @@ class JmailApi(private val session: SessionStore) {
         }
 
     fun me(): JSONObject = request("/api/v1/me")
-    fun accounts(): JSONArray = request("/api/v1/accounts").getJSONArray("accounts")
+    fun accounts(): JSONArray = arrayField(request("/api/v1/accounts"), "accounts")
     fun folders(): JSONArray = requestArray("/api/mail/folders")
     fun inbox(): JSONArray =
         messages("INBOX")
     fun messages(folder: String): JSONArray =
-        messagePage(folder, 1, 50).getJSONArray("messages")
+        arrayField(messagePage(folder, 1, 50), "messages")
     fun messagePage(folder: String, page: Int, pageSize: Int = 50): JSONObject =
         request("/api/mail/messages?folder=${encode(folder)}&page=$page&pageSize=$pageSize")
     fun searchMessages(folder: String, query: String): JSONArray =
-        request("/api/mail/search?folder=${encode(folder)}&q=${encode(query)}").getJSONArray("messages")
+        arrayField(request("/api/mail/search?folder=${encode(folder)}&q=${encode(query)}"), "messages")
     fun message(folder: String, uid: Int): JSONObject =
         request("/api/mail/message/${encode(folder)}/$uid")
     fun downloadAttachment(folder: String, uid: Int, partId: String): ByteArray =
@@ -111,7 +111,7 @@ class JmailApi(private val session: SessionStore) {
         )
 
     fun contacts(query: String = ""): JSONArray =
-        request("/api/contacts?q=${encode(query)}").getJSONArray("contacts")
+        arrayField(request("/api/contacts?q=${encode(query)}"), "contacts")
     fun createContact(name: String, email: String, phone: String, company: String, notes: String): JSONObject =
         request(
             "/api/contacts",
@@ -138,7 +138,7 @@ class JmailApi(private val session: SessionStore) {
     fun deleteContact(id: String): JSONObject = request("/api/contacts/${encode(id)}", "DELETE")
 
     fun events(from: String, to: String): JSONArray =
-        request("/api/calendar/events?from=${encode(from)}&to=${encode(to)}").getJSONArray("events")
+        arrayField(request("/api/calendar/events?from=${encode(from)}&to=${encode(to)}"), "events")
     fun createEvent(title: String, startsAt: String, endsAt: String, location: String): JSONObject =
         request(
             "/api/calendar/events",
@@ -182,6 +182,8 @@ class JmailApi(private val session: SessionStore) {
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
+
+    private fun arrayField(body: JSONObject, key: String): JSONArray = body.optJSONArray(key) ?: JSONArray()
 
     private fun recipients(value: String): JSONArray {
         val result = JSONArray()
