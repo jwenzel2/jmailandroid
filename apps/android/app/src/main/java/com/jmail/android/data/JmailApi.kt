@@ -210,8 +210,7 @@ class JmailApi(private val session: SessionStore) {
         val connection = openConnection(path)
         connection.setRequestProperty("Accept", "*/*")
         connection.setRequestProperty("Authorization", "Bearer $accessToken")
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val bytes = stream.use { it.readBytes() }
+        val bytes = responseBytes(connection)
         if (connection.responseCode !in 200..299) {
             if (connection.responseCode == 401) expireSession()
             error(apiError(connection.responseCode, bytes.toString(Charsets.UTF_8)))
@@ -235,8 +234,7 @@ class JmailApi(private val session: SessionStore) {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.outputStream.use { it.write(body.toString().toByteArray()) }
         }
-        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
-        val text = stream.bufferedReader().use { it.readText() }
+        val text = responseBytes(connection).toString(Charsets.UTF_8)
         if (connection.responseCode !in 200..299) {
             if (connection.responseCode == 401) expireSession()
             if (connection.responseCode == 404 && connection.url.toString().endsWith("/api/v1/compatibility")) {
@@ -245,6 +243,11 @@ class JmailApi(private val session: SessionStore) {
             error(apiError(connection.responseCode, text))
         }
         return text
+    }
+
+    private fun responseBytes(connection: HttpURLConnection): ByteArray {
+        val stream = if (connection.responseCode in 200..299) connection.inputStream else connection.errorStream
+        return stream?.use { it.readBytes() } ?: ByteArray(0)
     }
 
     private fun renewMobileTokenIfNeeded() {
