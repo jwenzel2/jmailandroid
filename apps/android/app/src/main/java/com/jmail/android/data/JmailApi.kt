@@ -74,18 +74,21 @@ class JmailApi(private val session: SessionStore) {
         requestBytes("/api/mail/message/${encode(folder)}/$uid/attachment/${encode(partId)}")
     fun action(folder: String, uid: Int, action: String, targetFolder: String? = null): JSONObject =
         action(folder, listOf(uid), action, targetFolder)
-    fun action(folder: String, uids: List<Int>, action: String, targetFolder: String? = null): JSONObject =
-        request(
+    fun action(folder: String, uids: List<Int>, action: String, targetFolder: String? = null): JSONObject {
+        val validUids = uids.filter { it > 0 }
+        if (validUids.isEmpty()) error("Select at least one message.")
+        return request(
             "/api/mail/actions",
             "POST",
             JSONObject()
                 .put("folder", folder)
-                .put("uids", JSONArray().apply { uids.forEach { put(it) } })
+                .put("uids", JSONArray().apply { validUids.forEach { put(it) } })
                 .put("action", action)
                 .apply {
                     if (!targetFolder.isNullOrBlank()) put("targetFolder", targetFolder)
                 },
         )
+    }
 
     fun send(
         to: String,
