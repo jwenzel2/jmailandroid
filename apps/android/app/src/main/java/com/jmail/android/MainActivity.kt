@@ -1026,7 +1026,7 @@ private fun AccountEditorScreen(
     var smtpHost by remember(accountId) { mutableStateOf(account?.cleanString("smtpHost") ?: "mail.jwenzel.net") }
     var smtpPort by remember(accountId) { mutableStateOf(account?.optInt("smtpPort")?.takeIf { it > 0 }?.toString() ?: "587") }
     var username by remember(accountId) { mutableStateOf(account?.cleanString("username").orEmpty()) }
-    var secret by remember { mutableStateOf("") }
+    var secret by remember(accountId) { mutableStateOf("") }
     var notifications by remember(accountId) { mutableStateOf(accountSettings?.optBoolean("notifications", true) ?: true) }
     var leaveOnServer by remember(accountId) { mutableStateOf(accountSettings?.optBoolean("leaveOnServer", true) ?: true) }
     var status by remember { mutableStateOf<String?>(null) }
