@@ -396,7 +396,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             runCatching {
                 withContext(Dispatchers.IO) { api.messagePage(folder, 1) }
             }.onSuccess { page ->
-                val pageMessages = page.getJSONArray("messages")
+                val pageMessages = page.messagePageItems()
                 messages.replace(pageMessages)
                 currentPage = page.optInt("page", 1)
                 val total = page.optInt("total", pageMessages.length())
@@ -420,7 +420,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             runCatching { api.messagePage(folder, currentPage + 1) }
                 .onSuccess { page ->
                     runOnMain {
-                        val pageMessages = page.getJSONArray("messages")
+                        val pageMessages = page.messagePageItems()
                         messages.addAll(pageMessages.objects())
                         currentPage = page.optInt("page", currentPage + 1)
                         val total = page.optInt("total", messages.size)
@@ -2240,6 +2240,8 @@ private fun MutableList<JSONObject>.replace(array: JSONArray) {
 
 private fun JSONArray.objects(): List<JSONObject> =
     List(length()) { index -> optJSONObject(index) }.filterNotNull()
+
+private fun JSONObject.messagePageItems(): JSONArray = optJSONArray("messages") ?: JSONArray()
 
 private fun JSONObject.messageUid(): Int? = optInt("uid").takeIf { it > 0 }
 
