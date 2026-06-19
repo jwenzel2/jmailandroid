@@ -1356,7 +1356,7 @@ private fun MessageDetailScreen(
                 val attachments = message.optJSONArray("attachments")
                 if (attachments != null && attachments.length() > 0) {
                     item { Text("Attachments", style = MaterialTheme.typography.titleMedium) }
-                    items(List(attachments.length()) { attachments.getJSONObject(it) }) { attachment ->
+                    items(attachments.objects()) { attachment ->
                         val partId = attachment.optString("partId")
                         val filename = attachment.optString("filename").ifBlank { "Attachment $partId" }
                         val contentType = attachment.optString("contentType").ifBlank { "application/octet-stream" }
@@ -2201,8 +2201,11 @@ private fun SettingsScreen(api: JmailApi, registerPush: () -> Unit, onThemeChang
 
 private fun MutableList<JSONObject>.replace(array: JSONArray) {
     clear()
-    repeat(array.length()) { add(array.getJSONObject(it)) }
+    addAll(array.objects())
 }
+
+private fun JSONArray.objects(): List<JSONObject> =
+    List(length()) { index -> optJSONObject(index) }.filterNotNull()
 
 private fun JSONObject.cleanString(key: String): String? {
     if (isNull(key)) return null
