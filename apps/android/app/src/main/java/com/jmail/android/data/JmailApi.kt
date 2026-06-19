@@ -200,10 +200,16 @@ class JmailApi(private val session: SessionStore) {
         body: JSONObject? = null,
         authenticated: Boolean = true,
     ): JSONObject {
-        return JSONObject(requestText(path, method, body, authenticated))
+        val text = requestText(path, method, body, authenticated).trim()
+        if (text.isBlank()) return JSONObject()
+        return runCatching { JSONObject(text) }.getOrElse { error("Server returned invalid JSON.") }
     }
 
-    private fun requestArray(path: String): JSONArray = JSONArray(requestText(path))
+    private fun requestArray(path: String): JSONArray {
+        val text = requestText(path).trim()
+        if (text.isBlank()) return JSONArray()
+        return runCatching { JSONArray(text) }.getOrElse { error("Server returned invalid JSON.") }
+    }
 
     private fun requestBytes(path: String): ByteArray {
         renewMobileTokenIfNeeded()
