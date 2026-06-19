@@ -2341,12 +2341,12 @@ private fun dayLabel(day: LocalDate): String =
 private fun eventsForDay(events: List<JSONObject>, day: LocalDate): List<JSONObject> =
     events.filter { eventDate(it) == day }
 
-private fun eventDate(event: JSONObject): LocalDate =
+private fun eventDate(event: JSONObject): LocalDate? =
     runCatching {
         Instant.parse(event.optString("startsAt"))
             .atZone(ZoneId.systemDefault())
             .toLocalDate()
-    }.getOrDefault(LocalDate.now())
+    }.getOrNull()
 
 private fun eventLocalDateTime(value: String, fallback: Instant): LocalDateTime =
     runCatching {
