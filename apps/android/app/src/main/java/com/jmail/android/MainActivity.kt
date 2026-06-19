@@ -1378,8 +1378,8 @@ private fun MessageDetailScreen(
                 if (attachments != null && attachments.length() > 0) {
                     item { Text("Attachments", style = MaterialTheme.typography.titleMedium) }
                     items(attachments.objects()) { attachment ->
-                        val partId = attachment.optString("partId")
-                        val filename = attachment.optString("filename").ifBlank { "Attachment $partId" }
+                        val partId = attachment.cleanString("partId")
+                        val filename = attachment.cleanString("filename") ?: "Attachment"
                         val contentType = attachment.optString("contentType").ifBlank { "application/octet-stream" }
                         val downloading = downloadingPartId == partId
                         val attachmentDownloadInFlight = downloadingPartId != null
@@ -1387,12 +1387,13 @@ private fun MessageDetailScreen(
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(filename, style = MaterialTheme.typography.titleSmall)
                                 Text("$contentType · ${formatBytes(attachment.optLong("size"))}")
-                                Button(enabled = !attachmentDownloadInFlight, onClick = {
-                                    downloadingPartId = partId
+                                Button(enabled = partId != null && !attachmentDownloadInFlight, onClick = {
+                                    val attachmentPartId = partId ?: return@Button
+                                    downloadingPartId = attachmentPartId
                                     error = null
                                     attachmentStatus = "Downloading $filename..."
                                     Thread {
-                                        runCatching { api.downloadAttachment(folder, uid, partId) }
+                                        runCatching { api.downloadAttachment(folder, uid, attachmentPartId) }
                                             .onSuccess { bytes ->
                                                 runOnMain {
                                                     runCatching {
