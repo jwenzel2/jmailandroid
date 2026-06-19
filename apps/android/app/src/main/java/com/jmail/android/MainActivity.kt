@@ -2374,7 +2374,7 @@ private fun formatEventTime(event: JSONObject): String {
 
 private fun replyDraft(message: JSONObject, folder: String, uid: Int): ComposeDraft {
     val from = message.optJSONArray("from")?.optJSONObject(0)?.optString("address").orEmpty()
-    val subject = message.optString("subject").let { if (it.startsWith("Re:", true)) it else "Re: $it" }
+    val subject = prefixedSubject(message.optString("subject"), "Re:")
     val quoted = message.optString("text").ifBlank { stripHtml(message.optString("html")) }
     return ComposeDraft(
         to = from,
@@ -2387,7 +2387,7 @@ private fun replyDraft(message: JSONObject, folder: String, uid: Int): ComposeDr
 }
 
 private fun forwardDraft(message: JSONObject): ComposeDraft {
-    val subject = message.optString("subject").let { if (it.startsWith("Fwd:", true)) it else "Fwd: $it" }
+    val subject = prefixedSubject(message.optString("subject"), "Fwd:")
     val body = message.optString("text").ifBlank { stripHtml(message.optString("html")) }
     return ComposeDraft(
         subject = subject,
@@ -2396,4 +2396,9 @@ private fun forwardDraft(message: JSONObject): ComposeDraft {
             "Date: ${message.optString("date")}\n" +
             "Subject: ${message.optString("subject")}\n\n$body",
     )
+}
+
+private fun prefixedSubject(subject: String, prefix: String): String {
+    val value = subject.trim().ifBlank { "(No subject)" }
+    return if (value.startsWith(prefix, true)) value else "$prefix $value"
 }
