@@ -6,6 +6,13 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URLEncoder
 
+data class OutgoingAttachment(
+    val filename: String,
+    val contentType: String,
+    val size: Long,
+    val contentBase64: String,
+)
+
 class JmailApi(private val session: SessionStore) {
     var onSessionExpired: ((String) -> Unit)? = null
 
@@ -100,6 +107,7 @@ class JmailApi(private val session: SessionStore) {
         text: String,
         inReplyToUid: Int? = null,
         inReplyToFolder: String? = null,
+        attachments: List<OutgoingAttachment> = emptyList(),
     ): JSONObject =
         request(
             "/api/mail/send",
@@ -112,7 +120,21 @@ class JmailApi(private val session: SessionStore) {
                 .put("text", text)
                 .put("html", JSONObject.NULL)
                 .put("inReplyToUid", inReplyToUid ?: JSONObject.NULL)
-                .put("inReplyToFolder", inReplyToFolder ?: JSONObject.NULL),
+                .put("inReplyToFolder", inReplyToFolder ?: JSONObject.NULL)
+                .put(
+                    "attachments",
+                    JSONArray().apply {
+                        attachments.forEach {
+                            put(
+                                JSONObject()
+                                    .put("filename", it.filename)
+                                    .put("contentType", it.contentType)
+                                    .put("size", it.size)
+                                    .put("contentBase64", it.contentBase64),
+                            )
+                        }
+                    },
+                ),
         )
 
     fun contacts(query: String = ""): JSONArray =
@@ -147,7 +169,7 @@ class JmailApi(private val session: SessionStore) {
 
     fun events(from: String, to: String): JSONArray =
         arrayField(request("/api/calendar/events?from=${encode(from)}&to=${encode(to)}"), "events")
-    fun createEvent(title: String, startsAt: String, endsAt: String, location: String): JSONObject =
+    fun createEvent(title: String, startsAt: String, endsAt: String, location: String, allDay: Boolean): JSONObject =
         request(
             "/api/calendar/events",
             "POST",
@@ -157,9 +179,9 @@ class JmailApi(private val session: SessionStore) {
                 .put("location", location.ifBlank { JSONObject.NULL })
                 .put("startsAt", startsAt)
                 .put("endsAt", endsAt)
-                .put("allDay", false),
+                .put("allDay", allDay),
         )
-    fun updateEvent(id: String, title: String, startsAt: String, endsAt: String, location: String): JSONObject {
+    fun updateEvent(id: String, title: String, startsAt: String, endsAt: String, location: String, allDay: Boolean): JSONObject {
         val eventId = requireNotBlank(id, "Event is missing its ID.")
         return request(
             "/api/calendar/events/${encode(eventId)}",
@@ -169,7 +191,7 @@ class JmailApi(private val session: SessionStore) {
                 .put("location", location.ifBlank { JSONObject.NULL })
                 .put("startsAt", startsAt)
                 .put("endsAt", endsAt)
-                .put("allDay", false),
+                .put("allDay", allDay),
         )
     }
     fun deleteEvent(id: String): JSONObject =
@@ -257,6 +279,13 @@ class JmailApi(private val session: SessionStore) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/json")
             connection.outputStream.use { it.write(body.toString().toByteArray()) }
+        } else if (method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE") {
+            // Body-capable methods (incl. DELETE) must carry a recognized content
+            // type or the server rejects them with 415, even when the route takes
+            // no body. Send an empty JSON object to satisfy the body parser.
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.outputStream.use { it.write("{}".toByteArray()) }
         }
         val text = responseBytes(connection).toString(Charsets.UTF_8)
         if (connection.responseCode !in 200..299) {
