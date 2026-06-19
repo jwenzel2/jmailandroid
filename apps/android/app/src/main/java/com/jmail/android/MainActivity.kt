@@ -421,7 +421,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 .onSuccess { page ->
                     runOnMain {
                         val pageMessages = page.getJSONArray("messages")
-                        repeat(pageMessages.length()) { messages.add(pageMessages.getJSONObject(it)) }
+                        messages.addAll(pageMessages.objects())
                         currentPage = page.optInt("page", currentPage + 1)
                         val total = page.optInt("total", messages.size)
                         val pageSize = page.optInt("pageSize", pageMessages.length())
@@ -433,13 +433,17 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
         }.start()
     }
     fun replaceMessage(uid: Int, patch: JSONObject.() -> Unit) {
-        val index = messages.indexOfFirst { it.optInt("uid") == uid }
+        val index = messages.indexOfFirst { it.messageUid() == uid }
         if (index >= 0) {
             messages[index] = JSONObject(messages[index].toString()).apply(patch)
         }
     }
     fun runMessageAction(message: JSONObject, action: String, removeFromList: Boolean = false, patch: (JSONObject.() -> Unit)? = null) {
-        val uid = message.optInt("uid")
+        val uid = message.messageUid()
+        if (uid == null) {
+            error = "Message is missing its UID."
+            return
+        }
         if (messageActionUids.contains(uid)) return
         messageActionUids = messageActionUids + uid
         error = null
@@ -447,7 +451,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             runCatching { api.action(folder, uid, action) }
                 .onSuccess {
                     runOnMain {
-                        if (removeFromList) messages.removeAll { it.optInt("uid") == uid }
+                        if (removeFromList) messages.removeAll { it.messageUid() == uid }
                         patch?.let { replaceMessage(uid, it) }
                         messageActionUids = messageActionUids - uid
                         refreshNonce++
@@ -472,7 +476,7 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
             runCatching { api.action(folder, uids, action, targetFolder) }
                 .onSuccess {
                     runOnMain {
-                        if (removeFromList) messages.removeAll { uidSet.contains(it.optInt("uid")) }
+                        if (removeFromList) messages.removeAll { it.messageUid() in uidSet }
                         patch?.let {
                             uids.forEach { uid -> replaceMessage(uid, patch) }
                         }
@@ -537,7 +541,12 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
         return
     }
     selected?.let {
-        val selectedUid = it.optInt("uid")
+        val selectedUid = it.messageUid()
+        if (selectedUid == null) {
+            error = "Message is missing its UID."
+            selected = null
+            return@let
+        }
         MessageDetailScreen(
             api = api,
             summary = it,
@@ -549,11 +558,11 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 compose(draft)
             },
             afterAction = {
-                messages.removeAll { message -> message.optInt("uid") == selectedUid }
+                messages.removeAll { message -> message.messageUid() == selectedUid }
                 selected = null
             },
             afterPatch = { patch ->
-                replaceMessage(it.optInt("uid"), patch)
+                replaceMessage(selectedUid, patch)
                 selected = JSONObject(it.toString()).apply(patch)
             },
         )
@@ -700,16 +709,17 @@ private fun AccountScreen(api: JmailApi, compose: (ComposeDraft) -> Unit) {
                 val seen = message.optBoolean("seen")
                 val flagged = message.optBoolean("flagged")
                 val hasAttachments = message.optBoolean("hasAttachments")
-                val uid = message.optInt("uid")
-                val selectedForBulk = selectedMessageUids.contains(uid)
-                val actionInFlight = messageActionUids.contains(uid)
-                val rowEnabled = !mailBusy && !actionInFlight
+                val uid = message.messageUid()
+                val selectedForBulk = uid != null && selectedMessageUids.contains(uid)
+                val actionInFlight = uid != null && messageActionUids.contains(uid)
+                val rowEnabled = uid != null && !mailBusy && !actionInFlight
                 Card(
                     onClick = {
                         if (rowEnabled) {
+                            val rowUid = uid ?: return@Card
                             if (selectingMessages) {
                                 selectedMessageUids =
-                                    if (selectedForBulk) selectedMessageUids - uid else selectedMessageUids + uid
+                                    if (selectedForBulk) selectedMessageUids - rowUid else selectedMessageUids + rowUid
                                 confirmingBulkDelete = false
                             } else {
                                 selected = message
@@ -2206,6 +2216,8 @@ private fun MutableList<JSONObject>.replace(array: JSONArray) {
 
 private fun JSONArray.objects(): List<JSONObject> =
     List(length()) { index -> optJSONObject(index) }.filterNotNull()
+
+private fun JSONObject.messageUid(): Int? = optInt("uid").takeIf { it > 0 }
 
 private fun JSONObject.cleanString(key: String): String? {
     if (isNull(key)) return null
