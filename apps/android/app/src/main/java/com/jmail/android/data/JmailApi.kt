@@ -70,8 +70,10 @@ class JmailApi(private val session: SessionStore) {
         arrayField(request("/api/mail/search?folder=${encode(folder)}&q=${encode(query)}"), "messages")
     fun message(folder: String, uid: Int): JSONObject =
         request("/api/mail/message/${encode(folder)}/$uid")
-    fun downloadAttachment(folder: String, uid: Int, partId: String): ByteArray =
-        requestBytes("/api/mail/message/${encode(folder)}/$uid/attachment/${encode(partId)}")
+    fun downloadAttachment(folder: String, uid: Int, partId: String): ByteArray {
+        val attachmentPartId = requireNotBlank(partId, "Attachment is missing its part ID.")
+        return requestBytes("/api/mail/message/${encode(folder)}/$uid/attachment/${encode(attachmentPartId)}")
+    }
     fun action(folder: String, uid: Int, action: String, targetFolder: String? = null): JSONObject =
         action(folder, listOf(uid), action, targetFolder)
     fun action(folder: String, uids: List<Int>, action: String, targetFolder: String? = null): JSONObject {
@@ -127,9 +129,10 @@ class JmailApi(private val session: SessionStore) {
                 .put("notes", notes.ifBlank { JSONObject.NULL })
                 .put("favorite", false),
         )
-    fun updateContact(id: String, name: String, email: String, phone: String, company: String, notes: String): JSONObject =
-        request(
-            "/api/contacts/${encode(id)}",
+    fun updateContact(id: String, name: String, email: String, phone: String, company: String, notes: String): JSONObject {
+        val contactId = requireNotBlank(id, "Contact is missing its ID.")
+        return request(
+            "/api/contacts/${encode(contactId)}",
             "PATCH",
             JSONObject()
                 .put("displayName", name)
@@ -138,7 +141,9 @@ class JmailApi(private val session: SessionStore) {
                 .put("company", company.ifBlank { JSONObject.NULL })
                 .put("notes", notes.ifBlank { JSONObject.NULL }),
         )
-    fun deleteContact(id: String): JSONObject = request("/api/contacts/${encode(id)}", "DELETE")
+    }
+    fun deleteContact(id: String): JSONObject =
+        request("/api/contacts/${encode(requireNotBlank(id, "Contact is missing its ID."))}", "DELETE")
 
     fun events(from: String, to: String): JSONArray =
         arrayField(request("/api/calendar/events?from=${encode(from)}&to=${encode(to)}"), "events")
@@ -154,9 +159,10 @@ class JmailApi(private val session: SessionStore) {
                 .put("endsAt", endsAt)
                 .put("allDay", false),
         )
-    fun updateEvent(id: String, title: String, startsAt: String, endsAt: String, location: String): JSONObject =
-        request(
-            "/api/calendar/events/${encode(id)}",
+    fun updateEvent(id: String, title: String, startsAt: String, endsAt: String, location: String): JSONObject {
+        val eventId = requireNotBlank(id, "Event is missing its ID.")
+        return request(
+            "/api/calendar/events/${encode(eventId)}",
             "PATCH",
             JSONObject()
                 .put("title", title)
@@ -165,17 +171,23 @@ class JmailApi(private val session: SessionStore) {
                 .put("endsAt", endsAt)
                 .put("allDay", false),
         )
-    fun deleteEvent(id: String): JSONObject = request("/api/calendar/events/${encode(id)}", "DELETE")
+    }
+    fun deleteEvent(id: String): JSONObject =
+        request("/api/calendar/events/${encode(requireNotBlank(id, "Event is missing its ID."))}", "DELETE")
 
     fun addAccount(body: JSONObject): JSONObject = request("/api/v1/accounts", "POST", body)
-    fun updateAccount(id: String, body: JSONObject): JSONObject = request("/api/v1/accounts/${encode(id)}", "PATCH", body)
-    fun deleteAccount(id: String): JSONObject = request("/api/v1/accounts/${encode(id)}", "DELETE")
+    fun updateAccount(id: String, body: JSONObject): JSONObject =
+        request("/api/v1/accounts/${encode(requireNotBlank(id, "Account is missing its ID."))}", "PATCH", body)
+    fun deleteAccount(id: String): JSONObject =
+        request("/api/v1/accounts/${encode(requireNotBlank(id, "Account is missing its ID."))}", "DELETE")
 
     fun registerDevice(installationId: String, token: String) {
+        val deviceInstallationId = requireNotBlank(installationId, "Device is missing its installation ID.")
+        val fcmToken = requireNotBlank(token, "Device is missing its FCM token.")
         request(
             "/api/v1/mobile/devices",
             "PUT",
-            JSONObject().put("installationId", installationId).put("fcmToken", token)
+            JSONObject().put("installationId", deviceInstallationId).put("fcmToken", fcmToken)
                 .put("deviceName", android.os.Build.MODEL).put("notificationsEnabled", session.notificationsEnabled),
         )
     }
@@ -185,6 +197,8 @@ class JmailApi(private val session: SessionStore) {
     }
 
     private fun encode(value: String): String = URLEncoder.encode(value, Charsets.UTF_8)
+
+    private fun requireNotBlank(value: String, message: String): String = value.trim().ifBlank { error(message) }
 
     private fun arrayField(body: JSONObject, key: String): JSONArray = body.optJSONArray(key) ?: JSONArray()
 
