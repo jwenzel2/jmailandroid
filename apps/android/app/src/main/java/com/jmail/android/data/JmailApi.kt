@@ -127,7 +127,7 @@ class JmailApi(private val session: SessionStore) {
         )
     fun updateContact(id: String, name: String, email: String, phone: String, company: String, notes: String): JSONObject =
         request(
-            "/api/contacts/$id",
+            "/api/contacts/${encode(id)}",
             "PATCH",
             JSONObject()
                 .put("displayName", name)
@@ -136,10 +136,10 @@ class JmailApi(private val session: SessionStore) {
                 .put("company", company.ifBlank { JSONObject.NULL })
                 .put("notes", notes.ifBlank { JSONObject.NULL }),
         )
-    fun deleteContact(id: String): JSONObject = request("/api/contacts/$id", "DELETE")
+    fun deleteContact(id: String): JSONObject = request("/api/contacts/${encode(id)}", "DELETE")
 
     fun events(from: String, to: String): JSONArray =
-        request("/api/calendar/events?from=$from&to=$to").getJSONArray("events")
+        request("/api/calendar/events?from=${encode(from)}&to=${encode(to)}").getJSONArray("events")
     fun createEvent(title: String, startsAt: String, endsAt: String, location: String): JSONObject =
         request(
             "/api/calendar/events",
@@ -154,7 +154,7 @@ class JmailApi(private val session: SessionStore) {
         )
     fun updateEvent(id: String, title: String, startsAt: String, endsAt: String, location: String): JSONObject =
         request(
-            "/api/calendar/events/$id",
+            "/api/calendar/events/${encode(id)}",
             "PATCH",
             JSONObject()
                 .put("title", title)
@@ -163,7 +163,7 @@ class JmailApi(private val session: SessionStore) {
                 .put("endsAt", endsAt)
                 .put("allDay", false),
         )
-    fun deleteEvent(id: String): JSONObject = request("/api/calendar/events/$id", "DELETE")
+    fun deleteEvent(id: String): JSONObject = request("/api/calendar/events/${encode(id)}", "DELETE")
 
     fun addAccount(body: JSONObject): JSONObject = request("/api/v1/accounts", "POST", body)
     fun updateAccount(id: String, body: JSONObject): JSONObject = request("/api/v1/accounts/${encode(id)}", "PATCH", body)
