@@ -261,7 +261,7 @@ class JmailApi(private val session: SessionStore) {
     }
 
     private fun openConnection(path: String): HttpURLConnection {
-        val url = if (path.startsWith("http")) path else "$serverUrl$path"
+        val url = if (path.startsWith("http://") || path.startsWith("https://")) path else "$serverUrl$path"
         return (URI.create(url).toURL().openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
