@@ -1,6 +1,7 @@
 package com.jmail.android
 
 import android.Manifest
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -2247,7 +2248,8 @@ private fun shareAttachment(context: Context, filename: String, contentType: Str
         .setType(contentType.ifBlank { "application/octet-stream" })
         .putExtra(Intent.EXTRA_STREAM, uri)
         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Open attachment"))
+    intent.clipData = ClipData.newUri(context.contentResolver, safeName, uri)
+    context.startActivity(Intent.createChooser(intent, "Open attachment").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
 }
 
 private fun stripHtml(value: String): String =
