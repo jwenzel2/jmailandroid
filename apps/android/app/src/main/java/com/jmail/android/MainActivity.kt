@@ -1031,7 +1031,7 @@ private fun AccountEditorScreen(
     var leaveOnServer by remember(accountId) { mutableStateOf(accountSettings?.optBoolean("leaveOnServer", true) ?: true) }
     var status by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
-    val editing = accountId != null
+    val editing = account != null
 
     fun selectProtocol(next: String) {
         protocol = next
@@ -1079,6 +1079,10 @@ private fun AccountEditorScreen(
                                 return@Button
                             }
                         }
+                        if (editing && accountId == null) {
+                            status = "Account is missing its ID."
+                            return@Button
+                        }
                         val body = JSONObject()
                             .put("email", emailText)
                             .put("displayName", displayName.trim().ifBlank { JSONObject.NULL })
@@ -1107,7 +1111,7 @@ private fun AccountEditorScreen(
                         status = if (editing) "Saving account..." else "Adding account..."
                         Thread {
                             runCatching {
-                                if (editing) api.updateAccount(accountId, body) else api.addAccount(body)
+                                if (editing) api.updateAccount(accountId ?: error("Account is missing its ID."), body) else api.addAccount(body)
                             }
                                 .onSuccess { runOnMain { done(it) } }
                                 .onFailure {
@@ -1731,12 +1735,16 @@ private fun ContactEditor(api: JmailApi, contact: JSONObject? = null, close: () 
                     status = "Enter a valid email address."
                     return@Button
                 }
+                if (contact != null && contactId == null) {
+                    status = "Contact is missing its ID."
+                    return@Button
+                }
                 saving = true
                 status = "Saving..."
                 Thread {
                     runCatching {
                         if (contact == null) api.createContact(nameText, emailText, phoneText, companyText, notesText)
-                        else api.updateContact(contactId.orEmpty(), nameText, emailText, phoneText, companyText, notesText)
+                        else api.updateContact(contactId ?: error("Contact is missing its ID."), nameText, emailText, phoneText, companyText, notesText)
                     }
                         .onSuccess { runOnMain { done(it) } }
                         .onFailure {
@@ -2032,7 +2040,7 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
             initialDay.atTime(9, 0).atZone(ZoneId.systemDefault()).toInstant()
         }
     }
-    val eventId = event?.optString("id").orEmpty().takeIf { it.isNotBlank() }
+    val eventId = event?.cleanString("id")
     val initialStartsAt = event?.cleanString("startsAt") ?: defaultStart.toString()
     val initialEndsAt = event?.cleanString("endsAt") ?: defaultStart.plus(1, ChronoUnit.HOURS).toString()
     val initialStartLocal = remember(eventId) { eventLocalDateTime(initialStartsAt, defaultStart) }
@@ -2079,6 +2087,10 @@ private fun EventEditor(api: JmailApi, event: JSONObject? = null, initialDay: Lo
                     }
                 if (!Instant.parse(endsAt).isAfter(Instant.parse(startsAt))) {
                     status = "End time must be after start time."
+                    return@Button
+                }
+                if (event != null && eventId == null) {
+                    status = "Event is missing its ID."
                     return@Button
                 }
                 saving = true
