@@ -2367,7 +2367,7 @@ private fun formatEventTime(event: JSONObject): String {
         val startText = Instant.parse(start).atZone(ZoneId.systemDefault()).format(formatter)
         val endText = Instant.parse(end).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("h:mm a"))
         "$startText - $endText"
-    }.getOrDefault(start)
+    }.getOrDefault("Invalid event time")
 }
 
 private fun replyDraft(message: JSONObject, folder: String, uid: Int): ComposeDraft {
